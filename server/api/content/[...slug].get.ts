@@ -79,6 +79,8 @@ export default defineEventHandler(async (event) => {
         html: parsed.html,
         toc: parsed.toc,
         frontmatter: parsed.frontmatter,
+        // Include raw markdown for copy feature
+        markdown: content,
         path: `/${contentSlug}`,
       }
     }

@@ -21,9 +21,13 @@
  * 3. Extract JWT from Authorization header or cookie
  * 4. Verify token and attach user info to event context
  * 5. Return 401 if unauthorized
+ * 
+ * SECURITY:
+ * - All token validation failures are logged with IP/timestamp
  */
 
 import { verifyToken, type JwtPayload } from '../utils/jwt'
+import { auditLog, getClientIp } from '../utils/audit'
 
 // =============================================================================
 // CONFIGURATION
@@ -53,7 +57,8 @@ const BLOCKED_ROUTES = [
 // =============================================================================
 
 export default defineEventHandler(async (event) => {
-  const path = event.path
+  const url = getRequestURL(event)
+  const path = url.pathname // Use pathname to exclude query string
   const config = useRuntimeConfig()
   
   // ---------------------------------------------------------------------------
@@ -61,7 +66,7 @@ export default defineEventHandler(async (event) => {
   // ---------------------------------------------------------------------------
   for (const blocked of BLOCKED_ROUTES) {
     if (path.startsWith(blocked) || path.includes('/../')) {
-      console.warn(`[Auth] Blocked access attempt: ${path}`)
+      console.warn(`[Auth] Blocked access attempt: ${path} from IP: ${getClientIp(event)}`)
       throw createError({
         statusCode: 403,
         statusMessage: 'Forbidden',
@@ -91,7 +96,7 @@ export default defineEventHandler(async (event) => {
   }
   
   // Allow static assets
-  if (path.startsWith('/_nuxt/') || path.startsWith('/assets/')) {
+  if (path.startsWith('/_nuxt/') || path.startsWith('/assets/') || path.match(/\.(js|css|png|jpg|svg|ico|woff2?)$/)) {
     return
   }
   
@@ -116,6 +121,11 @@ export default defineEventHandler(async (event) => {
   if (!token) {
     // For API routes, return 401
     if (path.startsWith('/api/')) {
+      await auditLog(event, 'access_denied', 'anonymous', false, 'no_token', {
+        path,
+        method: event.method,
+      })
+      
       throw createError({
         statusCode: 401,
         statusMessage: 'Unauthorized',
@@ -123,8 +133,9 @@ export default defineEventHandler(async (event) => {
       })
     }
     
-    // For page routes, redirect to login
-    return sendRedirect(event, `/login?redirect=${encodeURIComponent(path)}`)
+    // For page routes, redirect to login (avoid redirect loop)
+    const redirectTo = path === '/' ? '' : `?redirect=${encodeURIComponent(path)}`
+    return sendRedirect(event, `/login${redirectTo}`)
   }
   
   // Verify token
@@ -133,6 +144,18 @@ export default defineEventHandler(async (event) => {
   if (!result.valid) {
     // Clear invalid cookie
     deleteCookie(event, 'f0_token')
+    
+    const email = result.payload?.email || 'unknown'
+    
+    // Log the token failure
+    await auditLog(
+      event, 
+      result.error === 'expired' ? 'token_expired' : 'token_invalid',
+      email,
+      false,
+      result.error,
+      { path, method: event.method }
+    )
     
     // For API routes, return appropriate error
     if (path.startsWith('/api/')) {
@@ -149,7 +172,8 @@ export default defineEventHandler(async (event) => {
     }
     
     // For page routes, redirect to login
-    return sendRedirect(event, `/login?redirect=${encodeURIComponent(path)}&reason=expired`)
+    const redirectTo = path === '/' ? '' : `?redirect=${encodeURIComponent(path)}`
+    return sendRedirect(event, `/login${redirectTo}&reason=expired`)
   }
   
   // ---------------------------------------------------------------------------

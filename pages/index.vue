@@ -32,6 +32,8 @@
       <ContentMarkdownRenderer 
         :html="content?.html || ''" 
         :toc="content?.toc || []"
+        :title="content?.title"
+        :markdown="content?.markdown"
       />
     </article>
   </div>

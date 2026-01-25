@@ -25,11 +25,15 @@
  * 
  * CONSTRAINT COMPLIANCE:
  * - C-SEC-OTP-RATE-LIMIT-007: Max 3 verification attempts
+ * 
+ * SECURITY:
+ * - All attempts are logged with IP/timestamp for audit
  */
 
 import { verifyOtp, checkVerifyRateLimit } from '../../utils/otp'
 import { createToken } from '../../utils/jwt'
 import { OTP_CONFIG } from '../../utils/storage'
+import { auditLog } from '../../utils/audit'
 
 // =============================================================================
 // REQUEST VALIDATION
@@ -58,11 +62,13 @@ export default defineEventHandler(async (event) => {
   
   // Parse request body
   const body = await readBody<VerifyOtpBody>(event)
-  const email = body?.email?.toLowerCase().trim()
-  const code = body?.code?.trim()
+  const email = body?.email?.toLowerCase().trim() || ''
+  const code = body?.code?.trim() || ''
   
   // Validate inputs
   if (!email) {
+    await auditLog(event, 'otp_failed', 'unknown', false, 'missing_email')
+    
     throw createError({
       statusCode: 400,
       statusMessage: 'Bad Request',
@@ -71,6 +77,8 @@ export default defineEventHandler(async (event) => {
   }
   
   if (!code) {
+    await auditLog(event, 'otp_failed', email, false, 'missing_code')
+    
     throw createError({
       statusCode: 400,
       statusMessage: 'Bad Request',
@@ -79,6 +87,11 @@ export default defineEventHandler(async (event) => {
   }
   
   if (code.length !== OTP_CONFIG.CODE_LENGTH) {
+    await auditLog(event, 'otp_failed', email, false, 'invalid_code_length', {
+      providedLength: code.length,
+      expectedLength: OTP_CONFIG.CODE_LENGTH,
+    })
+    
     throw createError({
       statusCode: 400,
       statusMessage: 'Bad Request',
@@ -89,6 +102,8 @@ export default defineEventHandler(async (event) => {
   // Check rate limit (rapid-fire protection)
   const rateLimited = await checkVerifyRateLimit(email)
   if (rateLimited) {
+    await auditLog(event, 'otp_rate_limited', email, false, 'verify_rate_limit')
+    
     throw createError({
       statusCode: 429,
       statusMessage: 'Too Many Requests',
@@ -102,13 +117,16 @@ export default defineEventHandler(async (event) => {
   if (!result.success) {
     let message: string
     let statusCode = 401
+    let auditEventType: 'otp_failed' | 'otp_expired' | 'otp_max_attempts' = 'otp_failed'
     
     switch (result.error) {
       case 'expired':
         message = 'Verification code has expired. Please request a new one.'
+        auditEventType = 'otp_expired'
         break
       case 'max_attempts':
         message = 'Maximum verification attempts exceeded. Please request a new code.'
+        auditEventType = 'otp_max_attempts'
         break
       case 'not_found':
         message = 'No verification code found. Please request a new one.'
@@ -121,6 +139,10 @@ export default defineEventHandler(async (event) => {
       default:
         message = 'Verification failed. Please try again.'
     }
+    
+    await auditLog(event, auditEventType, email, false, result.error, {
+      attemptsRemaining: result.attemptsRemaining,
+    })
     
     throw createError({
       statusCode,
@@ -146,7 +168,10 @@ export default defineEventHandler(async (event) => {
     path: '/',
   })
   
-  console.log(`[Auth] User authenticated: ${email}`)
+  // Log successful authentication
+  await auditLog(event, 'login_success', email, true, undefined, {
+    tokenIssued: true,
+  })
   
   return {
     success: true,

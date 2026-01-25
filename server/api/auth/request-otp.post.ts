@@ -26,11 +26,13 @@
  * SECURITY:
  * - Always returns 200 for valid email format to prevent enumeration
  * - Rate limited to prevent abuse
+ * - All attempts are logged with IP/timestamp
  */
 
 import { isEmailAllowed } from '../../utils/allowlist'
 import { generateOtp, getOtpCode } from '../../utils/otp'
 import { sendOtpEmail } from '../../utils/email'
+import { auditLog } from '../../utils/audit'
 
 // =============================================================================
 // REQUEST VALIDATION
@@ -66,10 +68,12 @@ export default defineEventHandler(async (event) => {
   
   // Parse request body
   const body = await readBody<RequestOtpBody>(event)
-  const email = body?.email?.toLowerCase().trim()
+  const email = body?.email?.toLowerCase().trim() || ''
   
   // Validate email format
   if (!email || !isValidEmail(email)) {
+    await auditLog(event, 'otp_requested', email || 'invalid', false, 'invalid_email_format')
+    
     throw createError({
       statusCode: 400,
       statusMessage: 'Bad Request',
@@ -81,11 +85,10 @@ export default defineEventHandler(async (event) => {
   const allowed = await isEmailAllowed(email, config.privateDir)
   
   if (!allowed) {
-    // SECURITY: Return generic message to prevent email enumeration
-    // Log the actual reason for debugging
-    console.log(`[Auth] Email not in allowlist: ${email}`)
+    // Log the rejection
+    await auditLog(event, 'allowlist_rejected', email, false, 'email_not_in_allowlist')
     
-    // Return success anyway to prevent enumeration
+    // SECURITY: Return generic message to prevent email enumeration
     // The user just won't receive an email
     return {
       success: true,
@@ -98,6 +101,10 @@ export default defineEventHandler(async (event) => {
   
   if (!otpResult.success) {
     if (otpResult.error === 'rate_limited') {
+      await auditLog(event, 'otp_rate_limited', email, false, 'too_many_requests', {
+        retryAfter: otpResult.retryAfter,
+      })
+      
       throw createError({
         statusCode: 429,
         statusMessage: 'Too Many Requests',
@@ -107,6 +114,8 @@ export default defineEventHandler(async (event) => {
         },
       })
     }
+    
+    await auditLog(event, 'otp_requested', email, false, 'generation_failed')
     
     throw createError({
       statusCode: 500,
@@ -119,6 +128,8 @@ export default defineEventHandler(async (event) => {
   const otpCode = await getOtpCode(email)
   
   if (!otpCode) {
+    await auditLog(event, 'otp_requested', email, false, 'code_retrieval_failed')
+    
     throw createError({
       statusCode: 500,
       statusMessage: 'Internal Server Error',
@@ -129,14 +140,16 @@ export default defineEventHandler(async (event) => {
   try {
     await sendOtpEmail(email, otpCode)
     
-    console.log(`[Auth] OTP sent to ${email}`)
+    await auditLog(event, 'otp_sent', email, true)
     
     return {
       success: true,
       message: 'Verification code sent to your email.',
     }
   } catch (error) {
-    console.error(`[Auth] Failed to send OTP email to ${email}:`, error)
+    await auditLog(event, 'otp_send_failed', email, false, 'email_delivery_failed', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+    })
     
     throw createError({
       statusCode: 500,

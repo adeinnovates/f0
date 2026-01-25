@@ -8,20 +8,32 @@ Renders HTML content from parsed markdown with:
 - Smooth scroll to headings
 - Image lazy loading
 - TOC injection into layout
+- Copy page button
 
 USAGE:
-<ContentMarkdownRenderer :html="parsedHtml" :toc="tocItems" :title="pageTitle" />
+<ContentMarkdownRenderer :html="parsedHtml" :toc="tocItems" :title="pageTitle" :markdown="rawMarkdown" />
 
 PROPS:
 - html: string - Pre-rendered HTML from the markdown parser
 - toc: TocItem[] - Table of contents items
 - title: string - Page title (optional)
+- markdown: string - Raw markdown source (optional, for copy feature)
 -->
 
 <template>
   <div class="markdown-page">
-    <!-- Title if provided and not in HTML -->
-    <h1 v-if="title && !htmlHasH1" class="page-title">{{ title }}</h1>
+    <!-- Page header with title and copy button -->
+    <div class="page-header" v-if="title || !htmlHasH1">
+      <h1 v-if="title && !htmlHasH1" class="page-title">{{ title }}</h1>
+      <div class="page-actions">
+        <ContentCopyPageButton :content="html" :markdown="markdown" :title="title" />
+      </div>
+    </div>
+    
+    <!-- Copy button for pages with H1 in content -->
+    <div class="page-actions-float" v-else>
+      <ContentCopyPageButton :content="html" :markdown="markdown" :title="title" />
+    </div>
     
     <!-- Rendered content -->
     <div
@@ -40,6 +52,7 @@ const props = defineProps<{
   html: string
   toc?: TocItem[]
   title?: string
+  markdown?: string
 }>()
 
 // Check if HTML already has an H1
@@ -127,6 +140,36 @@ watch(() => props.html, () => {
 </script>
 
 <style scoped>
+.markdown-page {
+  position: relative;
+}
+
+/* Page header with title and actions */
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--spacing-4);
+  margin-bottom: var(--spacing-6);
+}
+
+.page-header .page-title {
+  margin: 0;
+  flex: 1;
+}
+
+.page-actions {
+  flex-shrink: 0;
+}
+
+/* Floating copy button for pages with H1 in content */
+.page-actions-float {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 10;
+}
+
 .markdown-content {
   /* Typography handled by global styles */
 }
@@ -165,5 +208,26 @@ watch(() => props.html, () => {
   display: block;
   max-width: 100%;
   overflow-x: auto;
+}
+
+/* Adjust first heading when floating copy button is present */
+.page-actions-float + .markdown-content :deep(h1:first-child) {
+  padding-right: 140px; /* Make room for copy button */
+}
+
+@media (max-width: 640px) {
+  .page-header {
+    flex-direction: column;
+    gap: var(--spacing-3);
+  }
+  
+  .page-actions-float {
+    position: static;
+    margin-bottom: var(--spacing-4);
+  }
+  
+  .page-actions-float + .markdown-content :deep(h1:first-child) {
+    padding-right: 0;
+  }
 }
 </style>

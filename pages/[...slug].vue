@@ -36,6 +36,7 @@
         :html="content.html" 
         :toc="content.toc"
         :title="content.title"
+        :markdown="content.markdown"
       />
       
       <!-- API documentation (OpenAPI/Postman) -->
@@ -68,6 +69,7 @@ interface ContentResponse {
   html?: string
   toc?: TocItem[]
   spec?: ApiSpec
+  markdown?: string  // Raw markdown for copy feature
 }
 
 // ---------------------------------------------------------------------------
