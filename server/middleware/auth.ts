@@ -109,7 +109,7 @@ export default defineEventHandler(async (event) => {
   
   // Fall back to cookie
   if (!token) {
-    token = getCookie(event, 'litedocs_token') || null
+    token = getCookie(event, 'f0_token') || null
   }
   
   // No token found
@@ -132,7 +132,7 @@ export default defineEventHandler(async (event) => {
   
   if (!result.valid) {
     // Clear invalid cookie
-    deleteCookie(event, 'litedocs_token')
+    deleteCookie(event, 'f0_token')
     
     // For API routes, return appropriate error
     if (path.startsWith('/api/')) {

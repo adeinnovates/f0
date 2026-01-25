@@ -49,14 +49,14 @@ f0 uses a passwordless, email-based OTP (One-Time Password) flow:
 5. **User enters code** — Max 3 attempts
 6. **JWT is issued** — Valid for 72 hours
 
-```
-┌─────────┐     ┌─────────┐     ┌─────────┐
-│  User   │────▶│ f0│────▶│ AWS SES │
-│ Browser │◀────│  Server │◀────│  Email  │
-└─────────┘     └─────────┘     └─────────┘
-     │                │
-     │    JWT Token   │
-     │◀───────────────│
+```text
++----------+     +----------+     +----------+
+|   User   |---->|    f0    |---->| AWS SES  |
+|  Browser |<----|  Server  |<----|  Email   |
++----------+     +----------+     +----------+
+      |                |
+      |   JWT Token    |
+      |<---------------|
 ```
 
 ## Security Features
@@ -92,6 +92,8 @@ To prevent abuse:
 
 ## Next Steps
 
-- [Configure Email (AWS SES)](/guides/authentication/email-setup)
-- [Set Up Allowlist](/guides/authentication/allowlist)
-- [JWT Configuration](/guides/authentication/jwt-config)
+For more details on configuring f0 authentication:
+
+- Review the `.env.example` file for all available options
+- Check the `/private/allowlist.json` for access control
+- See the [API Reference](/api) for authentication endpoints

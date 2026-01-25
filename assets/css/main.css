@@ -156,6 +156,13 @@
 html {
   scroll-behavior: smooth;
   scroll-padding-top: calc(var(--header-height) + var(--spacing-6));
+  /* Prevent white flash by setting background on html too */
+  background-color: var(--color-bg-primary);
+}
+
+/* Set dark background immediately when data-theme is dark */
+html[data-theme="dark"] {
+  background-color: #191919;
 }
 
 body {
@@ -405,6 +412,85 @@ blockquote p:last-child {
 .callout-success {
   background-color: var(--color-success-bg);
   border-color: var(--color-success);
+}
+
+/* =============================================================================
+   API ENDPOINT BLOCKS (for markdown documentation)
+   ============================================================================= */
+
+.api-endpoint {
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--spacing-6);
+  overflow: hidden;
+}
+
+.api-endpoint-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-4);
+  background-color: var(--color-bg-secondary);
+  border-bottom: 1px solid var(--color-border-primary);
+}
+
+.api-endpoint-summary {
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin: var(--spacing-4) var(--spacing-4) 0;
+}
+
+.api-endpoint-description {
+  color: var(--color-text-secondary);
+  margin: var(--spacing-2) var(--spacing-4) var(--spacing-4);
+}
+
+.api-endpoint p {
+  margin: var(--spacing-2) var(--spacing-4);
+}
+
+.api-endpoint p:first-of-type {
+  margin-top: var(--spacing-4);
+}
+
+.api-endpoint p:last-of-type {
+  margin-bottom: var(--spacing-4);
+}
+
+.api-endpoint .code-block {
+  margin: var(--spacing-4);
+}
+
+/* API method badges */
+.api-method {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-1) var(--spacing-3);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  border-radius: var(--radius-sm);
+  color: white;
+  min-width: 60px;
+  font-family: var(--font-family-mono);
+}
+
+.api-method-get { background-color: #059669; }
+.api-method-post { background-color: #2563eb; }
+.api-method-put { background-color: #d97706; }
+.api-method-patch { background-color: #7c3aed; }
+.api-method-delete { background-color: #dc2626; }
+.api-method-options { background-color: #6b7280; }
+.api-method-head { background-color: #6b7280; }
+
+.api-path {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+  font-family: var(--font-family-mono);
+  background-color: var(--color-bg-tertiary);
+  padding: var(--spacing-1) var(--spacing-2);
+  border-radius: var(--radius-sm);
 }
 
 /* =============================================================================

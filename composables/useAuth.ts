@@ -71,7 +71,7 @@ export function useAuth() {
     
     // Check for token in localStorage
     if (import.meta.client) {
-      const token = localStorage.getItem('litedocs_token')
+      const token = localStorage.getItem('f0_token')
       
       if (token) {
         try {
@@ -83,10 +83,10 @@ export function useAuth() {
             state.value.user = { email: payload.email }
           } else {
             // Token expired
-            localStorage.removeItem('litedocs_token')
+            localStorage.removeItem('f0_token')
           }
         } catch {
-          localStorage.removeItem('litedocs_token')
+          localStorage.removeItem('f0_token')
         }
       }
     }
@@ -148,7 +148,7 @@ export function useAuth() {
       if (response.success && response.token) {
         // Store token
         if (import.meta.client) {
-          localStorage.setItem('litedocs_token', response.token)
+          localStorage.setItem('f0_token', response.token)
         }
         
         // Update state
@@ -173,7 +173,7 @@ export function useAuth() {
    */
   function login(token: string) {
     if (import.meta.client) {
-      localStorage.setItem('litedocs_token', token)
+      localStorage.setItem('f0_token', token)
     }
     
     // Parse token to get user info
@@ -189,7 +189,7 @@ export function useAuth() {
    */
   function logout() {
     if (import.meta.client) {
-      localStorage.removeItem('litedocs_token')
+      localStorage.removeItem('f0_token')
     }
     
     state.value.isAuthenticated = false
@@ -204,7 +204,7 @@ export function useAuth() {
    */
   function getAuthHeader(): Record<string, string> {
     if (import.meta.client) {
-      const token = localStorage.getItem('litedocs_token')
+      const token = localStorage.getItem('f0_token')
       if (token) {
         return { Authorization: `Bearer ${token}` }
       }

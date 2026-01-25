@@ -22,7 +22,7 @@
     <!-- Header -->
     <header class="api-header">
       <h1>{{ spec.title }}</h1>
-      <p v-if="spec.description" class="api-description">{{ spec.description }}</p>
+      <div v-if="spec.description" class="api-description" v-html="spec.description"></div>
       
       <div class="api-meta">
         <span class="api-version">Version {{ spec.version }}</span>
@@ -57,7 +57,7 @@
     <!-- Endpoints by group -->
     <section v-for="group in spec.groups" :key="group.name" class="api-section">
       <h2>{{ group.name }}</h2>
-      <p v-if="group.description" class="group-description">{{ group.description }}</p>
+      <div v-if="group.description" class="group-description" v-html="group.description"></div>
       
       <div class="endpoints">
         <div 
@@ -77,7 +77,7 @@
           
           <!-- Summary -->
           <p v-if="endpoint.summary" class="endpoint-summary">{{ endpoint.summary }}</p>
-          <p v-if="endpoint.description" class="endpoint-description">{{ endpoint.description }}</p>
+          <div v-if="endpoint.description" class="endpoint-description" v-html="endpoint.description"></div>
           
           <!-- Parameters -->
           <div v-if="endpoint.parameters.length > 0" class="endpoint-params">
@@ -428,5 +428,120 @@ function downloadSpec() {
 .response-description {
   font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
+}
+
+/* Markdown content styles for descriptions */
+.api-description,
+.group-description,
+.endpoint-description {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  line-height: 1.6;
+}
+
+.api-description :deep(h2),
+.group-description :deep(h2),
+.endpoint-description :deep(h2) {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  margin-top: var(--spacing-4);
+  margin-bottom: var(--spacing-2);
+  color: var(--color-text-primary);
+}
+
+.api-description :deep(h3),
+.group-description :deep(h3),
+.endpoint-description :deep(h3) {
+  font-size: var(--font-size-base);
+  font-weight: 600;
+  margin-top: var(--spacing-3);
+  margin-bottom: var(--spacing-2);
+  color: var(--color-text-primary);
+}
+
+.api-description :deep(h4),
+.group-description :deep(h4),
+.endpoint-description :deep(h4) {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  margin-top: var(--spacing-2);
+  margin-bottom: var(--spacing-1);
+  color: var(--color-text-primary);
+}
+
+.api-description :deep(p),
+.group-description :deep(p),
+.endpoint-description :deep(p) {
+  margin-bottom: var(--spacing-3);
+}
+
+.api-description :deep(ul),
+.group-description :deep(ul),
+.endpoint-description :deep(ul) {
+  margin-left: var(--spacing-4);
+  margin-bottom: var(--spacing-3);
+  list-style-type: disc;
+}
+
+.api-description :deep(li),
+.group-description :deep(li),
+.endpoint-description :deep(li) {
+  margin-bottom: var(--spacing-1);
+}
+
+.api-description :deep(code),
+.group-description :deep(code),
+.endpoint-description :deep(code) {
+  background-color: var(--color-bg-secondary);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-family-mono);
+  font-size: 0.9em;
+}
+
+.api-description :deep(strong),
+.group-description :deep(strong),
+.endpoint-description :deep(strong) {
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+/* Tables in descriptions */
+.api-description :deep(table),
+.group-description :deep(table),
+.endpoint-description :deep(table),
+:deep(.api-table) {
+  width: 100%;
+  border-collapse: collapse;
+  margin: var(--spacing-4) 0;
+  font-size: var(--font-size-sm);
+}
+
+.api-description :deep(th),
+.group-description :deep(th),
+.endpoint-description :deep(th),
+:deep(.api-table th) {
+  text-align: left;
+  padding: var(--spacing-2) var(--spacing-3);
+  background-color: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-primary);
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.api-description :deep(td),
+.group-description :deep(td),
+.endpoint-description :deep(td),
+:deep(.api-table td) {
+  padding: var(--spacing-2) var(--spacing-3);
+  border: 1px solid var(--color-border-primary);
+  color: var(--color-text-secondary);
+}
+
+.api-description :deep(tr:hover td),
+.group-description :deep(tr:hover td),
+.endpoint-description :deep(tr:hover td),
+:deep(.api-table tr:hover td) {
+  background-color: var(--color-bg-hover);
 }
 </style>

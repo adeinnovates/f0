@@ -30,7 +30,7 @@ export function useSeo(options: SeoOptions = {}) {
   const config = useRuntimeConfig()
   const route = useRoute()
   
-  const siteName = config.public.siteName || 'LiteDocs'
+  const siteName = config.public.siteName || 'f0'
   const siteDescription = config.public.siteDescription || 'Documentation'
   
   // Build title

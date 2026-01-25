@@ -97,6 +97,26 @@ export default defineNuxtConfig({
           href: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap' 
         },
       ],
+      // Inline script to prevent theme flash - runs before page renders
+      script: [
+        {
+          innerHTML: `
+            (function() {
+              try {
+                var theme = localStorage.getItem('f0-theme');
+                if (theme === 'dark' || (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                  document.documentElement.setAttribute('data-theme', 'dark');
+                  document.documentElement.style.colorScheme = 'dark';
+                } else {
+                  document.documentElement.setAttribute('data-theme', 'light');
+                  document.documentElement.style.colorScheme = 'light';
+                }
+              } catch (e) {}
+            })();
+          `,
+          type: 'text/javascript',
+        },
+      ],
     },
   },
 

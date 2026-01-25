@@ -96,6 +96,8 @@ export interface ContentMeta {
  */
 let navigationCache: Navigation | null = null
 let contentMetaCache: Map<string, ContentMeta> = new Map()
+let cacheTimestamp: number = 0
+const CACHE_TTL = 5000 // 5 seconds TTL in dev mode
 
 /**
  * Invalidate the navigation cache
@@ -104,7 +106,21 @@ let contentMetaCache: Map<string, ContentMeta> = new Map()
 export function invalidateNavigationCache(): void {
   navigationCache = null
   contentMetaCache.clear()
+  cacheTimestamp = 0
   console.log('[Navigation] Cache invalidated')
+}
+
+/**
+ * Check if cache is still valid
+ */
+function isCacheValid(): boolean {
+  if (!navigationCache) return false
+  
+  // In production, cache forever
+  if (process.env.NODE_ENV === 'production') return true
+  
+  // In dev, expire after TTL
+  return (Date.now() - cacheTimestamp) < CACHE_TTL
 }
 
 // =============================================================================
@@ -327,8 +343,11 @@ async function scanDirectory(
         })
       } else if (isJsonSpecFile(entry.name)) {
         // Parse JSON spec for metadata
+        console.log(`[Navigation] Found JSON spec: ${entry.name} at ${entryPath}`)
         const { title } = await getTitleFromJsonSpec(entryPath)
         const filenameOrder = extractOrderFromFilename(entry.name)
+        
+        console.log(`[Navigation] JSON spec title: "${title}", path: "${urlPath}"`)
         
         items.push({
           title,
@@ -363,9 +382,9 @@ async function scanDirectory(
  * @returns Navigation object with topNav and sidebar
  */
 export async function buildNavigation(contentDir: string): Promise<Navigation> {
-  // Return cached if available
-  if (navigationCache) {
-    return navigationCache
+  // Return cached if available and valid
+  if (isCacheValid()) {
+    return navigationCache!
   }
   
   console.log('[Navigation] Building navigation from', contentDir)
@@ -405,6 +424,7 @@ export async function buildNavigation(contentDir: string): Promise<Navigation> {
   
   // Cache the result
   navigationCache = { topNav, sidebar }
+  cacheTimestamp = Date.now()
   
   return navigationCache
 }

@@ -6,8 +6,9 @@ F0 - HEADER COMPONENT
 The main site header with:
 - Logo/site name
 - Top-level navigation
+- Search button
 - Theme toggle
-- Mobile menu button (future)
+- Mobile menu button
 
 USAGE:
 <Header />
@@ -37,6 +38,20 @@ USAGE:
     
     <!-- Actions -->
     <div class="header-actions">
+      <!-- Search Button -->
+      <button
+        class="search-button"
+        aria-label="Search documentation"
+        @click="openSearch"
+      >
+        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"></circle>
+          <path d="m21 21-4.35-4.35"></path>
+        </svg>
+        <span class="search-text">Search</span>
+        <kbd class="search-shortcut">⌘K</kbd>
+      </button>
+      
       <!-- Theme Toggle -->
       <LayoutThemeToggle />
       
@@ -71,6 +86,7 @@ const siteName = config.public.siteName || 'f0'
 
 const { topNav, isActive } = useNavigation()
 const { isAuthenticated, logout } = useAuth()
+const { openSearch } = useSearch()
 
 // Emit event for mobile menu toggle
 defineEmits(['toggle-sidebar'])
@@ -146,7 +162,49 @@ function handleLogout() {
   margin-left: auto;
   display: flex;
   align-items: center;
-  gap: var(--spacing-4);
+  gap: var(--spacing-3);
+}
+
+/* Search Button */
+.search-button {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
+  background-color: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  transition: all var(--transition-fast);
+  min-width: 200px;
+}
+
+.search-button:hover {
+  background-color: var(--color-bg-hover);
+  border-color: var(--color-border-secondary);
+  color: var(--color-text-secondary);
+}
+
+.search-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.search-text {
+  flex: 1;
+  text-align: left;
+}
+
+.search-shortcut {
+  font-size: var(--font-size-xs);
+  padding: 2px 6px;
+  background-color: var(--color-bg-primary);
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-family-mono);
 }
 
 .mobile-menu-toggle {
@@ -169,6 +227,16 @@ function handleLogout() {
 
 @media (max-width: 768px) {
   .header-nav {
+    display: none;
+  }
+  
+  .search-button {
+    min-width: auto;
+    padding: var(--spacing-2);
+  }
+  
+  .search-text,
+  .search-shortcut {
     display: none;
   }
   

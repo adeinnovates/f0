@@ -239,6 +239,132 @@ function remarkCallouts() {
   }
 }
 
+/**
+ * Remark plugin to handle API endpoint syntax
+ * 
+ * Syntax:
+ * :::api GET /users/{id}
+ * Get user by ID
+ * 
+ * Retrieves a specific user by their unique identifier.
+ * :::
+ * 
+ * Supported methods: GET, POST, PUT, PATCH, DELETE
+ */
+function remarkApiEndpoints() {
+  return (tree: Root) => {
+    visit(tree, 'paragraph', (node: Paragraph, index, parent) => {
+      if (!parent || index === undefined) return
+      if (node.children.length !== 1 || node.children[0].type !== 'text') return
+      
+      const text = (node.children[0] as Text).value
+      
+      // Match single-paragraph API endpoint (:::api METHOD /path\ndescription\n:::)
+      const singleMatch = text.match(/^:::api\s+(GET|POST|PUT|PATCH|DELETE|OPTIONS|HEAD)\s+(.+?)\n([\s\S]*?)\n:::$/i)
+      if (singleMatch) {
+        const [, method, path, content] = singleMatch
+        const methodLower = method.toLowerCase()
+        
+        // Parse content - first line is summary, rest is description
+        const lines = content.trim().split('\n')
+        const summary = lines[0] || ''
+        const description = lines.slice(1).join('\n').trim()
+        
+        // @ts-expect-error - Adding custom node structure
+        parent.children[index] = {
+          type: 'apiEndpoint',
+          data: {
+            hName: 'div',
+            hProperties: {
+              className: ['api-endpoint', `api-endpoint-${methodLower}`],
+            },
+          },
+          children: [
+            {
+              type: 'html',
+              value: `<div class="api-endpoint-header"><span class="api-method api-method-${methodLower}">${method.toUpperCase()}</span><code class="api-path">${escapeHtml(path)}</code></div>`,
+            },
+            ...(summary ? [{
+              type: 'paragraph',
+              data: { hProperties: { className: ['api-endpoint-summary'] } },
+              children: [{ type: 'text', value: summary }],
+            }] : []),
+            ...(description ? [{
+              type: 'paragraph',
+              data: { hProperties: { className: ['api-endpoint-description'] } },
+              children: [{ type: 'text', value: description }],
+            }] : []),
+          ],
+        }
+        return
+      }
+      
+      // Check for API endpoint opening (multi-line)
+      const openMatch = text.match(/^:::api\s+(GET|POST|PUT|PATCH|DELETE|OPTIONS|HEAD)\s+(.+?)\s*$/i)
+      if (!openMatch) return
+      
+      const [, method, path] = openMatch
+      const methodLower = method.toLowerCase()
+      
+      // Find the closing :::
+      let endIndex = index + 1
+      const contentNodes: unknown[] = []
+      
+      while (endIndex < parent.children.length) {
+        const child = parent.children[endIndex]
+        
+        // Check for closing :::
+        if (
+          child.type === 'paragraph' &&
+          child.children.length === 1 &&
+          child.children[0].type === 'text' &&
+          (child.children[0] as Text).value.trim() === ':::'
+        ) {
+          break
+        }
+        
+        contentNodes.push(child)
+        endIndex++
+      }
+      
+      // If we found a closing tag, transform the nodes
+      if (endIndex < parent.children.length) {
+        // @ts-expect-error - Adding custom node structure
+        const apiNode = {
+          type: 'apiEndpoint',
+          data: {
+            hName: 'div',
+            hProperties: {
+              className: ['api-endpoint', `api-endpoint-${methodLower}`],
+            },
+          },
+          children: [
+            {
+              type: 'html',
+              value: `<div class="api-endpoint-header"><span class="api-method api-method-${methodLower}">${method.toUpperCase()}</span><code class="api-path">${escapeHtml(path)}</code></div>`,
+            },
+            ...contentNodes,
+          ],
+        }
+        
+        parent.children.splice(index, endIndex - index + 1, apiNode)
+      }
+    })
+  }
+}
+
+/**
+ * Escape HTML special characters
+ */
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+}
+
 // =============================================================================
 // CUSTOM REHYPE PLUGINS
 // =============================================================================
@@ -459,42 +585,57 @@ export async function parseMarkdown(content: string): Promise<ParsedMarkdown> {
   // TOC will be populated by the rehype plugin
   const toc: TocItem[] = []
   
-  // Build the processing pipeline
-  const processor = unified()
-    // Parse markdown to AST
-    .use(remarkParse)
-    // Add GFM support (tables, task lists, strikethrough, autolinks)
-    .use(remarkGfm)
-    // Custom: YouTube embeds
-    .use(remarkYouTube)
-    // Custom: Callout boxes
-    .use(remarkCallouts)
-    // Convert to HTML AST
-    .use(remarkRehype, { allowDangerousHtml: true })
-    // Add slugs to headings for linking
-    .use(rehypeSlug)
-    // Extract TOC from headings
-    .use(() => rehypeExtractToc(toc))
-    // Syntax highlighting for code blocks
-    .use(rehypeHighlight, { detect: true })
-    // Wrap code blocks with copy button UI
-    .use(rehypeCodeBlocks)
-    // Convert to HTML string
-    .use(rehypeStringify, { allowDangerousHtml: true })
-  
-  // Process the markdown
-  const result = await processor.process(mdContent)
-  const html = String(result)
-  
-  // Generate plain text for LLM
-  const plainText = markdownToPlainText(content)
-  
-  return {
-    html,
-    frontmatter,
-    toc,
-    plainText,
-    title: frontmatter.title || extractedTitle || 'Untitled',
+  try {
+    // Build the processing pipeline
+    const processor = unified()
+      // Parse markdown to AST
+      .use(remarkParse)
+      // Add GFM support (tables, task lists, strikethrough, autolinks)
+      .use(remarkGfm)
+      // Custom: YouTube embeds
+      .use(remarkYouTube)
+      // Custom: Callout boxes
+      .use(remarkCallouts)
+      // Custom: API endpoint blocks
+      .use(remarkApiEndpoints)
+      // Convert to HTML AST
+      .use(remarkRehype, { allowDangerousHtml: true })
+      // Add slugs to headings for linking
+      .use(rehypeSlug)
+      // Extract TOC from headings
+      .use(() => rehypeExtractToc(toc))
+      // Syntax highlighting for code blocks (disable auto-detect to prevent errors)
+      .use(rehypeHighlight, { detect: false, ignoreMissing: true })
+      // Wrap code blocks with copy button UI
+      .use(rehypeCodeBlocks)
+      // Convert to HTML string
+      .use(rehypeStringify, { allowDangerousHtml: true })
+    
+    // Process the markdown
+    const result = await processor.process(mdContent)
+    const html = String(result)
+    
+    // Generate plain text for LLM
+    const plainText = markdownToPlainText(content)
+    
+    return {
+      html,
+      frontmatter,
+      toc,
+      plainText,
+      title: frontmatter.title || extractedTitle || 'Untitled',
+    }
+  } catch (error) {
+    console.error('[Markdown] Error parsing content:', error)
+    
+    // Return a basic parsed result with error message
+    return {
+      html: `<div class="callout callout-error"><p>Error rendering content. Please check the markdown syntax.</p></div><pre>${escapeHtml(mdContent)}</pre>`,
+      frontmatter,
+      toc: [],
+      plainText: mdContent,
+      title: frontmatter.title || extractedTitle || 'Untitled',
+    }
   }
 }
 

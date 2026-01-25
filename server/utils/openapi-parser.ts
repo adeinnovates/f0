@@ -24,6 +24,185 @@
 import { readFile } from 'fs/promises'
 
 // =============================================================================
+// MARKDOWN TO HTML CONVERTER (for descriptions)
+// =============================================================================
+
+/**
+ * Convert markdown text to HTML for API descriptions
+ * Handles common patterns: headers, bold, italic, code, links, tables, lists
+ */
+function markdownToHtml(text: string | undefined): string | undefined {
+  if (!text) return undefined
+  
+  let html = text
+  
+  // First, extract and protect code blocks (``` ... ```)
+  const codeBlocks: string[] = []
+  html = html.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) => {
+    const index = codeBlocks.length
+    const escapedCode = code
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+    codeBlocks.push(`<pre><code class="language-${lang || 'text'}">${escapedCode.trim()}</code></pre>`)
+    return `__CODE_BLOCK_${index}__`
+  })
+  
+  // Extract and protect inline code (` ... `)
+  const inlineCode: string[] = []
+  html = html.replace(/`([^`\n]+)`/g, (_, code) => {
+    const index = inlineCode.length
+    const escapedCode = code
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+    inlineCode.push(`<code>${escapedCode}</code>`)
+    return `__INLINE_CODE_${index}__`
+  })
+  
+  // Now escape remaining HTML special characters
+  html = html
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+  
+  // Convert markdown tables to HTML tables
+  html = convertTables(html)
+  
+  // Convert headers (## Header)
+  html = html.replace(/^### (.+)$/gm, '<h4>$1</h4>')
+  html = html.replace(/^## (.+)$/gm, '<h3>$1</h3>')
+  html = html.replace(/^# (.+)$/gm, '<h2>$1</h2>')
+  
+  // Convert bold (**text** or __text__)
+  html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+  html = html.replace(/__([^_]+)__/g, '<strong>$1</strong>')
+  
+  // Convert italic (*text* or _text_) - be careful not to match already converted bold
+  html = html.replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, '<em>$1</em>')
+  html = html.replace(/(?<!_)_([^_\n]+)_(?!_)/g, '<em>$1</em>')
+  
+  // Convert links [text](url)
+  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
+  
+  // Convert unordered lists (- item)
+  html = html.replace(/^- (.+)$/gm, '<li>$1</li>')
+  html = html.replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>')
+  
+  // Convert numbered lists (1. item)
+  html = html.replace(/^\d+\. (.+)$/gm, '<li>$1</li>')
+  
+  // Convert line breaks to paragraphs
+  // Split by double newlines for paragraphs
+  const paragraphs = html.split(/\n\n+/)
+  html = paragraphs
+    .map(p => {
+      p = p.trim()
+      // Don't wrap if it's already a block element or a placeholder
+      if (p.startsWith('<h') || p.startsWith('<ul') || p.startsWith('<ol') || 
+          p.startsWith('<table') || p.startsWith('<li') || p.startsWith('__CODE_BLOCK_')) {
+        return p
+      }
+      // Don't wrap empty paragraphs
+      if (!p) return ''
+      return `<p>${p.replace(/\n/g, '<br>')}</p>`
+    })
+    .filter(p => p)
+    .join('\n')
+  
+  // Restore code blocks
+  codeBlocks.forEach((block, i) => {
+    html = html.replace(`__CODE_BLOCK_${i}__`, block)
+  })
+  
+  // Restore inline code
+  inlineCode.forEach((code, i) => {
+    html = html.replace(`__INLINE_CODE_${i}__`, code)
+  })
+  
+  return html
+}
+
+/**
+ * Convert markdown tables to HTML tables
+ */
+function convertTables(text: string): string {
+  const lines = text.split('\n')
+  const result: string[] = []
+  let inTable = false
+  let tableRows: string[] = []
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    
+    // Check if this is a table row (contains | and isn't a separator)
+    const isTableRow = line.includes('|') && !line.match(/^\|?\s*[-:]+\s*\|/)
+    const isSeparator = line.match(/^\|?\s*[-:]+[-|\s:]+\|?\s*$/)
+    
+    if (isTableRow) {
+      if (!inTable) {
+        inTable = true
+        tableRows = []
+      }
+      tableRows.push(line)
+    } else if (isSeparator && inTable) {
+      // Skip separator lines
+      continue
+    } else {
+      // End of table or not a table
+      if (inTable && tableRows.length > 0) {
+        result.push(renderTable(tableRows))
+        tableRows = []
+        inTable = false
+      }
+      result.push(line)
+    }
+  }
+  
+  // Handle table at end of text
+  if (inTable && tableRows.length > 0) {
+    result.push(renderTable(tableRows))
+  }
+  
+  return result.join('\n')
+}
+
+/**
+ * Render table rows as HTML table
+ */
+function renderTable(rows: string[]): string {
+  if (rows.length === 0) return ''
+  
+  const parseRow = (row: string): string[] => {
+    return row
+      .split('|')
+      .map(cell => cell.trim())
+      .filter((_, i, arr) => i > 0 && i < arr.length - 1 || arr.length <= 2)
+  }
+  
+  const headerCells = parseRow(rows[0])
+  const bodyRows = rows.slice(1)
+  
+  let html = '<table class="api-table"><thead><tr>'
+  for (const cell of headerCells) {
+    html += `<th>${cell}</th>`
+  }
+  html += '</tr></thead><tbody>'
+  
+  for (const row of bodyRows) {
+    const cells = parseRow(row)
+    html += '<tr>'
+    for (const cell of cells) {
+      html += `<td>${cell}</td>`
+    }
+    html += '</tr>'
+  }
+  
+  html += '</tbody></table>'
+  return html
+}
+
+// =============================================================================
 // TYPE DEFINITIONS
 // =============================================================================
 
@@ -293,7 +472,7 @@ function parseOpenApi(spec: Record<string, unknown>, rawSpec: string): ApiSpec {
         method,
         path,
         summary: operation.summary as string | undefined,
-        description: operation.description as string | undefined,
+        description: markdownToHtml(operation.description as string | undefined),
         tags: (operation.tags as string[]) || ['default'],
         parameters,
         requestBody,
@@ -327,14 +506,14 @@ function parseOpenApi(spec: Record<string, unknown>, rawSpec: string): ApiSpec {
   for (const [name, eps] of groupMap.entries()) {
     groups.push({
       name,
-      description: tagDescriptions.get(name),
+      description: markdownToHtml(tagDescriptions.get(name)),
       endpoints: eps,
     })
   }
   
   return {
     title: info.title as string || 'API Reference',
-    description: info.description as string | undefined,
+    description: markdownToHtml(info.description as string | undefined),
     version: info.version as string || '1.0.0',
     baseUrl,
     format: 'openapi',
@@ -378,7 +557,7 @@ function parsePostman(collection: Record<string, unknown>, rawSpec: string): Api
         if (subEndpoints.length > 0) {
           groups.push({
             name: folderName,
-            description: i.description as string | undefined,
+            description: markdownToHtml(i.description as string | undefined),
             endpoints: subEndpoints,
           })
         }
@@ -479,8 +658,10 @@ function parsePostman(collection: Record<string, unknown>, rawSpec: string): Api
           method,
           path,
           summary: i.name as string || undefined,
-          description: (i.description as string | undefined) || 
-                       (request.description as string | undefined),
+          description: markdownToHtml(
+            (i.description as string | undefined) || 
+            (request.description as string | undefined)
+          ),
           tags: [parentPath || 'default'],
           parameters,
           requestBody,
@@ -507,7 +688,7 @@ function parsePostman(collection: Record<string, unknown>, rawSpec: string): Api
   
   return {
     title: info.name as string || 'API Collection',
-    description: info.description as string | undefined,
+    description: markdownToHtml(info.description as string | undefined),
     version: info.version as string || '1.0.0',
     format: 'postman',
     groups,

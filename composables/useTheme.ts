@@ -15,7 +15,7 @@
  * - Auto-detects system preference
  * - Persists choice in localStorage
  * - Smooth CSS transitions
- * - SSR-compatible
+ * - SSR-compatible (uses inline script to prevent flash)
  */
 
 type Theme = 'light' | 'dark' | 'system'
@@ -23,6 +23,7 @@ type Theme = 'light' | 'dark' | 'system'
 interface ThemeState {
   theme: Theme          // User preference
   resolvedTheme: 'light' | 'dark'  // Actual theme being applied
+  initialized: boolean
 }
 
 const STORAGE_KEY = 'f0-theme'
@@ -31,10 +32,11 @@ const STORAGE_KEY = 'f0-theme'
  * Theme composable
  */
 export function useTheme() {
-  // State
+  // State - start with dark as default to match inline script behavior
   const state = useState<ThemeState>('theme', () => ({
     theme: 'system',
-    resolvedTheme: 'light',
+    resolvedTheme: 'dark',  // Default to dark to prevent flash
+    initialized: false,
   }))
   
   /**
@@ -46,7 +48,7 @@ export function useTheme() {
         ? 'dark'
         : 'light'
     }
-    return 'light'
+    return 'dark'  // Default to dark for SSR
   }
   
   /**
@@ -65,8 +67,6 @@ export function useTheme() {
   function applyTheme(resolvedTheme: 'light' | 'dark') {
     if (import.meta.client) {
       document.documentElement.setAttribute('data-theme', resolvedTheme)
-      
-      // Also set color-scheme for native elements
       document.documentElement.style.colorScheme = resolvedTheme
     }
     
@@ -102,6 +102,10 @@ export function useTheme() {
    */
   function initTheme() {
     if (!import.meta.client) return
+    if (state.value.initialized) return
+    
+    // Check what theme the inline script already applied
+    const currentTheme = document.documentElement.getAttribute('data-theme') as 'light' | 'dark' | null
     
     // Load saved preference
     const saved = localStorage.getItem(STORAGE_KEY) as Theme | null
@@ -110,9 +114,16 @@ export function useTheme() {
       state.value.theme = saved
     }
     
-    // Apply theme
-    const resolved = resolveTheme(state.value.theme)
-    applyTheme(resolved)
+    // If inline script already set theme, use that as resolved
+    if (currentTheme) {
+      state.value.resolvedTheme = currentTheme
+    } else {
+      // Apply theme
+      const resolved = resolveTheme(state.value.theme)
+      applyTheme(resolved)
+    }
+    
+    state.value.initialized = true
     
     // Listen for system preference changes
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
@@ -128,8 +139,12 @@ export function useTheme() {
   const isLight = computed(() => state.value.resolvedTheme === 'light')
   const isSystem = computed(() => state.value.theme === 'system')
   
-  // Initialize on client
+  // Initialize on client - run immediately if possible
   if (import.meta.client) {
+    // Try to initialize immediately
+    initTheme()
+    
+    // Also ensure it runs on mount
     onMounted(() => {
       initTheme()
     })

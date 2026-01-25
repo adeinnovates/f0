@@ -138,7 +138,7 @@ export default defineEventHandler(async (event) => {
   
   // Set cookie for browser-based auth
   // HttpOnly for security, Secure in production
-  setCookie(event, 'litedocs_token', token, {
+  setCookie(event, 'f0_token', token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',

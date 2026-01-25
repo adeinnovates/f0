@@ -49,6 +49,9 @@
       class="sidebar-overlay"
       @click="sidebarOpen = false"
     />
+    
+    <!-- Search Modal (Command Palette) -->
+    <LayoutSearchModal />
   </div>
 </template>
 
@@ -72,6 +75,13 @@ const { theme } = useTheme()
 const { tocItems, showToc, clearToc } = useToc()
 
 // ---------------------------------------------------------------------------
+// SEARCH
+// ---------------------------------------------------------------------------
+
+// Initialize search keyboard shortcuts
+const { setupKeyboardShortcuts } = useSearch()
+
+// ---------------------------------------------------------------------------
 // ROUTE CHANGE HANDLING
 // ---------------------------------------------------------------------------
 
@@ -87,17 +97,14 @@ watch(() => route.path, () => {
 // ---------------------------------------------------------------------------
 
 onMounted(() => {
+  // Set up search shortcuts (Cmd/Ctrl+K)
+  setupKeyboardShortcuts()
+  
   const handleKeydown = (e: KeyboardEvent) => {
     // Escape closes sidebar
     if (e.key === 'Escape' && sidebarOpen.value) {
       sidebarOpen.value = false
     }
-    
-    // Cmd/Ctrl + K could open search (future feature)
-    // if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-    //   e.preventDefault()
-    //   openSearch()
-    // }
   }
   
   window.addEventListener('keydown', handleKeydown)

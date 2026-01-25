@@ -21,8 +21,8 @@ Before you begin, make sure you have:
 Clone the repository and install dependencies:
 
 ```bash
-git clone https://github.com/your-org/litedocs.git
-cd litedocs
+git clone https://github.com/your-org/f0.git
+cd f0
 npm install
 ```
 

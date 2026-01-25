@@ -179,6 +179,41 @@ Embed YouTube videos:
 
 Replace `dQw4w9WgXcQ` with the actual video ID.
 
+### API Endpoint Blocks
+
+Document API endpoints inline with styled blocks:
+
+```markdown
+:::api GET /users/{id}
+Get user by ID
+
+Retrieves a specific user by their unique identifier.
+:::
+
+:::api POST /users
+Create a new user
+
+Creates a new user account with the provided information.
+:::
+
+:::api DELETE /users/{id}
+Delete user
+
+Permanently removes a user account.
+:::
+```
+
+Supported methods: `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `OPTIONS`, `HEAD`
+
+Each method gets a colored badge:
+- **GET** — Green
+- **POST** — Blue
+- **PUT** — Orange
+- **PATCH** — Purple
+- **DELETE** — Red
+
+You can include full markdown content inside the block, including code examples and tables.
+
 ## Images
 
 ### Adding Images
