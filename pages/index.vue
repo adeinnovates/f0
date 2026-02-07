@@ -34,6 +34,7 @@
         :toc="content?.toc || []"
         :title="content?.title"
         :markdown="content?.markdown"
+        path="/"
       />
     </article>
   </div>

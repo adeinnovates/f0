@@ -37,6 +37,7 @@
         :toc="content.toc"
         :title="content.title"
         :markdown="content.markdown"
+        :path="content.path"
       />
       
       <!-- API documentation (OpenAPI/Postman) -->
@@ -70,6 +71,7 @@ interface ContentResponse {
   toc?: TocItem[]
   spec?: ApiSpec
   markdown?: string  // Raw markdown for copy feature
+  path?: string      // Page path for download feature
 }
 
 // ---------------------------------------------------------------------------

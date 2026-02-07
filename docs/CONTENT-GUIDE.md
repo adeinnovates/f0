@@ -214,6 +214,69 @@ Each method gets a colored badge:
 
 You can include full markdown content inside the block, including code examples and tables.
 
+### Mermaid Diagrams
+
+Create beautiful diagrams with Mermaid syntax:
+
+````markdown
+```mermaid
+flowchart LR
+    A[User] --> B[API Gateway]
+    B --> C[Auth Service]
+    B --> D[Data Service]
+    C --> E[(Database)]
+    D --> E
+```
+````
+
+Supported diagram types:
+- **Flowcharts** — Process flows, decision trees
+- **Sequence Diagrams** — API interactions, message flows
+- **Class Diagrams** — Object relationships
+- **State Diagrams** — State machines
+- **Entity Relationship** — Database schemas
+- **Gantt Charts** — Project timelines
+- **Pie Charts** — Data distribution
+- **Git Graphs** — Branch visualizations
+
+Example sequence diagram:
+
+````markdown
+```mermaid
+sequenceDiagram
+    participant Client
+    participant API
+    participant Database
+    
+    Client->>API: POST /login
+    API->>Database: Validate credentials
+    Database-->>API: User data
+    API-->>Client: JWT token
+```
+````
+
+Example class diagram:
+
+````markdown
+```mermaid
+classDiagram
+    class User {
+        +String id
+        +String email
+        +login()
+        +logout()
+    }
+    class Order {
+        +String id
+        +Date created
+        +process()
+    }
+    User "1" --> "*" Order : places
+```
+````
+
+Diagrams are rendered with beautiful styling inspired by [beautiful-mermaid](https://github.com/lukilabs/beautiful-mermaid).
+
 ## Images
 
 ### Adding Images
@@ -292,6 +355,117 @@ f0 generates a special `/llms.txt` endpoint for AI agents:
 - Videos converted to `[Video: title - URL]`
 
 This allows AI agents to quickly understand your entire documentation.
+
+## Agent APIs
+
+f0 provides dedicated APIs for AI agents, LLMs, and retrieval systems.
+
+### Semantic Search API
+
+Search documentation programmatically with rich, structured results:
+
+```
+GET /api/agents/search?q=query&limit=5&include_content=true
+```
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `q` | string | required | Search query |
+| `limit` | number | 5 | Max results (1-20) |
+| `include_content` | boolean | false | Include full markdown in results |
+| `section` | string | - | Filter by section name |
+
+**Example Response:**
+
+```json
+{
+  "query": "authentication setup",
+  "total": 3,
+  "results": [
+    {
+      "title": "Authentication Setup",
+      "path": "/guides/authentication/setup",
+      "url": "https://docs.example.com/guides/authentication/setup",
+      "section": "Guides",
+      "relevance": 0.95,
+      "excerpt": "To configure authentication...",
+      "headings": ["Overview", "Setup", "Configuration"],
+      "metadata": {
+        "wordCount": 450,
+        "hasCodeBlocks": true,
+        "hasApiEndpoints": false
+      }
+    }
+  ],
+  "suggested_queries": ["OTP setup", "email authentication"],
+  "api_info": {
+    "endpoint": "/api/agents/search",
+    "llms_txt": "/llms.txt",
+    "raw_markdown": "/api/content/raw/{path}"
+  }
+}
+```
+
+**Usage Examples:**
+
+```bash
+# Basic search
+curl "https://docs.example.com/api/agents/search?q=authentication"
+
+# Search with full content
+curl "https://docs.example.com/api/agents/search?q=auth&include_content=true&limit=3"
+
+# Filter by section
+curl "https://docs.example.com/api/agents/search?q=setup&section=Guides"
+```
+
+### Raw Markdown API
+
+Download the raw markdown for any page:
+
+```
+GET /api/content/raw/{path}
+```
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `download` | boolean | false | Set to `true` to trigger file download |
+
+**Response Headers:**
+
+| Header | Description |
+|--------|-------------|
+| `Content-Type` | `text/markdown; charset=utf-8` |
+| `X-Page-Title` | Page title |
+| `X-Page-Path` | Page URL path |
+| `X-Word-Count` | Approximate word count |
+
+**Examples:**
+
+```bash
+# Get raw markdown
+curl "https://docs.example.com/api/content/raw/guides/getting-started"
+
+# Download as file
+curl -O "https://docs.example.com/api/content/raw/guides/getting-started?download=true"
+```
+
+### UI Download Button
+
+Every page includes a "Copy page" dropdown with a "Download .md file" option, making it easy for users to save documentation locally.
+
+### Comparison with Basedoc
+
+| Feature | f0 | Basedoc |
+|---------|-----|---------|
+| LLM text output | `/llms.txt` | `llms.txt` + `llms-full.txt` |
+| Semantic search | `/api/agents/search` | Semantic search API |
+| Raw markdown | `/api/content/raw/{path}` | `.md` versions per page |
+| Open in AI | Coming soon | "Use in AI" button |
 
 ## Writing Tips
 

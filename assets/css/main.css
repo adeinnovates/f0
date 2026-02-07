@@ -1271,3 +1271,164 @@ a:not(.header-logo):not(.header-nav a):not(.sidebar-item):not(.toc-link) {
 a:not(.header-logo):not(.header-nav a):not(.sidebar-item):not(.toc-link):hover {
   color: var(--color-text-link-hover);
 }
+
+/* =============================================================================
+   MERMAID DIAGRAMS (Beautiful-Mermaid inspired styling)
+   ============================================================================= */
+
+.mermaid-wrapper {
+  margin: var(--spacing-6) 0;
+  padding: var(--spacing-6);
+  background: linear-gradient(135deg, var(--color-bg-secondary) 0%, var(--color-bg-tertiary) 100%);
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--radius-lg);
+  overflow-x: auto;
+}
+
+.mermaid {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100px;
+}
+
+.mermaid-rendered {
+  /* Successfully rendered diagram */
+}
+
+.mermaid-rendered svg {
+  max-width: 100%;
+  height: auto;
+  font-family: Inter, system-ui, sans-serif;
+}
+
+/* Improve SVG rendering */
+.mermaid-rendered svg .node rect,
+.mermaid-rendered svg .node circle,
+.mermaid-rendered svg .node polygon,
+.mermaid-rendered svg .node ellipse {
+  stroke-width: 2px;
+}
+
+.mermaid-rendered svg .edgePath path {
+  stroke-width: 2px;
+}
+
+.mermaid-rendered svg .label {
+  font-family: Inter, system-ui, sans-serif;
+  font-size: 14px;
+}
+
+/* Dark mode adjustments */
+[data-theme="dark"] .mermaid-wrapper {
+  background: linear-gradient(135deg, var(--color-bg-tertiary) 0%, rgba(30, 41, 59, 0.8) 100%);
+}
+
+[data-theme="dark"] .mermaid-rendered svg {
+  /* Invert dark mode to maintain visibility */
+}
+
+[data-theme="dark"] .mermaid-rendered svg text {
+  fill: var(--color-text-primary);
+}
+
+/* Error state */
+.mermaid-error-container {
+  background: var(--color-error-bg);
+  border: 1px solid var(--color-error);
+}
+
+.mermaid-error {
+  color: var(--color-error);
+  padding: var(--spacing-4);
+  text-align: center;
+}
+
+.mermaid-error strong {
+  display: block;
+  margin-bottom: var(--spacing-2);
+}
+
+.mermaid-error pre {
+  text-align: left;
+  font-size: var(--text-sm);
+  background: var(--color-bg-secondary);
+  padding: var(--spacing-3);
+  border-radius: var(--radius-md);
+  margin: var(--spacing-3) 0;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.mermaid-error small {
+  display: block;
+  margin-top: var(--spacing-2);
+  opacity: 0.8;
+}
+
+/* Loading state placeholder */
+.mermaid[data-mermaid="true"] {
+  padding: var(--spacing-8);
+  text-align: center;
+  color: var(--color-text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  white-space: pre-wrap;
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-md);
+}
+
+/* Sequence diagram specific */
+.mermaid-rendered svg .actor {
+  stroke-width: 2px;
+}
+
+.mermaid-rendered svg .messageLine0,
+.mermaid-rendered svg .messageLine1 {
+  stroke-width: 1.5px;
+}
+
+/* Flowchart specific */
+.mermaid-rendered svg .flowchart-link {
+  stroke-width: 2px;
+}
+
+/* Gantt chart specific */
+.mermaid-rendered svg .section {
+  stroke-width: 0;
+}
+
+/* Class diagram specific */
+.mermaid-rendered svg .classGroup rect {
+  stroke-width: 2px;
+}
+
+/* State diagram specific */
+.mermaid-rendered svg .statediagram-state rect {
+  stroke-width: 2px;
+}
+
+/* ER diagram specific */
+.mermaid-rendered svg .er.entityBox {
+  stroke-width: 2px;
+}
+
+/* Pie chart specific */
+.mermaid-rendered svg .pieCircle {
+  stroke-width: 2px;
+}
+
+/* Git graph specific */
+.mermaid-rendered svg .commit-id,
+.mermaid-rendered svg .commit-msg {
+  font-family: var(--font-mono);
+}
+
+/* Print styles */
+@media print {
+  .mermaid-wrapper {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}

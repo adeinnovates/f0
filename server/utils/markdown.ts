@@ -420,7 +420,44 @@ function rehypeCodeBlocks() {
       const langClass = classNames?.find(c => c.startsWith('language-'))
       const language = langClass?.replace('language-', '') || 'text'
       
-      // Wrap the pre in a code-block container
+      // Special handling for mermaid diagrams
+      if (language === 'mermaid') {
+        // Extract the mermaid code content
+        let mermaidCode = ''
+        const extractText = (children: typeof codeElement.children) => {
+          for (const child of children) {
+            if (child.type === 'text') {
+              mermaidCode += child.value
+            } else if (child.type === 'element' && 'children' in child) {
+              extractText(child.children)
+            }
+          }
+        }
+        extractText(codeElement.children)
+        
+        // Create mermaid container that will be rendered client-side
+        const mermaidWrapper: Element = {
+          type: 'element',
+          tagName: 'div',
+          properties: { className: ['mermaid-wrapper'] },
+          children: [
+            {
+              type: 'element',
+              tagName: 'div',
+              properties: { 
+                className: ['mermaid'],
+                'data-mermaid': 'true',
+              },
+              children: [{ type: 'text', value: mermaidCode.trim() }],
+            },
+          ],
+        }
+        
+        parent.children[index] = mermaidWrapper
+        return
+      }
+      
+      // Wrap the pre in a code-block container (for non-mermaid blocks)
       const wrapper: Element = {
         type: 'element',
         tagName: 'div',

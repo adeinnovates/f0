@@ -26,13 +26,13 @@ PROPS:
     <div class="page-header" v-if="title || !htmlHasH1">
       <h1 v-if="title && !htmlHasH1" class="page-title">{{ title }}</h1>
       <div class="page-actions">
-        <ContentCopyPageButton :content="html" :markdown="markdown" :title="title" />
+        <ContentCopyPageButton :content="html" :markdown="markdown" :title="title" :path="path" />
       </div>
     </div>
     
     <!-- Copy button for pages with H1 in content -->
     <div class="page-actions-float" v-else>
-      <ContentCopyPageButton :content="html" :markdown="markdown" :title="title" />
+      <ContentCopyPageButton :content="html" :markdown="markdown" :title="title" :path="path" />
     </div>
     
     <!-- Rendered content -->
@@ -53,6 +53,7 @@ const props = defineProps<{
   toc?: TocItem[]
   title?: string
   markdown?: string
+  path?: string
 }>()
 
 // Check if HTML already has an H1
@@ -122,11 +123,118 @@ function setupLazyImages() {
   })
 }
 
+// Initialize mermaid diagrams
+async function setupMermaid() {
+  if (!contentRef.value) return
+  
+  const mermaidBlocks = contentRef.value.querySelectorAll('.mermaid[data-mermaid="true"]')
+  if (mermaidBlocks.length === 0) return
+  
+  // Dynamically import mermaid only when needed
+  try {
+    const mermaid = await import('mermaid')
+    
+    // Initialize mermaid with beautiful-mermaid inspired config
+    mermaid.default.initialize({
+      startOnLoad: false,
+      theme: 'base',
+      themeVariables: {
+        // Beautiful-mermaid inspired colors
+        primaryColor: '#4f46e5',
+        primaryTextColor: '#ffffff',
+        primaryBorderColor: '#4338ca',
+        lineColor: '#6366f1',
+        secondaryColor: '#f1f5f9',
+        tertiaryColor: '#e2e8f0',
+        // Text colors
+        textColor: '#1e293b',
+        // Note colors
+        noteBkgColor: '#fef3c7',
+        noteTextColor: '#92400e',
+        noteBorderColor: '#fcd34d',
+        // Flowchart
+        nodeBorder: '#4338ca',
+        clusterBkg: '#f8fafc',
+        clusterBorder: '#cbd5e1',
+        // Sequence diagram
+        actorBkg: '#4f46e5',
+        actorTextColor: '#ffffff',
+        actorBorder: '#4338ca',
+        actorLineColor: '#94a3b8',
+        signalColor: '#1e293b',
+        signalTextColor: '#1e293b',
+        // Gantt
+        sectionBkgColor: '#f1f5f9',
+        altSectionBkgColor: '#e2e8f0',
+        taskBkgColor: '#4f46e5',
+        taskTextColor: '#ffffff',
+        taskBorderColor: '#4338ca',
+        doneTaskBkgColor: '#10b981',
+        // Git graph
+        git0: '#4f46e5',
+        git1: '#10b981',
+        git2: '#f59e0b',
+        git3: '#ef4444',
+        git4: '#8b5cf6',
+        git5: '#06b6d4',
+        git6: '#ec4899',
+        git7: '#84cc16',
+        gitBranchLabel0: '#ffffff',
+        commitLabelColor: '#1e293b',
+      },
+      fontFamily: 'Inter, system-ui, sans-serif',
+      fontSize: 14,
+      flowchart: {
+        htmlLabels: true,
+        curve: 'basis',
+        padding: 15,
+      },
+      sequence: {
+        diagramMarginX: 50,
+        diagramMarginY: 10,
+        actorMargin: 50,
+        width: 150,
+        height: 65,
+        boxMargin: 10,
+        boxTextMargin: 5,
+        noteMargin: 10,
+        messageMargin: 35,
+      },
+    })
+    
+    // Render each mermaid block
+    let counter = 0
+    for (const block of mermaidBlocks) {
+      const code = block.textContent || ''
+      const id = `mermaid-${Date.now()}-${counter++}`
+      
+      try {
+        const { svg } = await mermaid.default.render(id, code)
+        block.innerHTML = svg
+        block.removeAttribute('data-mermaid')
+        block.classList.add('mermaid-rendered')
+      } catch (err) {
+        console.error('Mermaid render error:', err)
+        // Show error state
+        block.innerHTML = `<div class="mermaid-error">
+          <strong>Diagram Error</strong>
+          <pre>${code}</pre>
+          <small>${err instanceof Error ? err.message : 'Failed to render diagram'}</small>
+        </div>`
+        block.classList.add('mermaid-error-container')
+      }
+    }
+  } catch (err) {
+    console.error('Failed to load mermaid:', err)
+  }
+}
+
 // Run setup after mount and when HTML changes
 onMounted(() => {
   setupCopyButtons()
   setupExternalLinks()
   setupLazyImages()
+  setupMermaid()
 })
 
 watch(() => props.html, () => {
@@ -135,6 +243,7 @@ watch(() => props.html, () => {
     setupCopyButtons()
     setupExternalLinks()
     setupLazyImages()
+    setupMermaid()
   })
 })
 </script>

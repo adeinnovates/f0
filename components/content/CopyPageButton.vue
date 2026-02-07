@@ -59,6 +59,17 @@ USAGE:
           </svg>
           <span>Copy link to page</span>
         </button>
+        
+        <div class="dropdown-divider"></div>
+        
+        <button class="dropdown-item" @click="downloadMarkdown">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          <span>Download .md file</span>
+        </button>
       </div>
     </Transition>
     
@@ -79,6 +90,8 @@ interface Props {
   markdown?: string
   /** Page title */
   title?: string
+  /** Page path for download endpoint */
+  path?: string
 }
 
 const props = defineProps<Props>()
@@ -257,6 +270,34 @@ async function copyLink() {
   }
 }
 
+/**
+ * Download raw markdown file
+ */
+function downloadMarkdown() {
+  try {
+    // Get the current path from props or window location
+    const pagePath = props.path || window.location.pathname
+    const cleanPath = pagePath.replace(/^\//, '') || 'home'
+    
+    // Create download URL
+    const downloadUrl = `/api/content/raw/${cleanPath}?download=true`
+    
+    // Create a link and trigger download
+    const link = document.createElement('a')
+    link.href = downloadUrl
+    link.download = `${cleanPath.replace(/\//g, '-')}.md`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    
+    showNotification('Downloading...')
+    closeDropdown()
+  } catch (err) {
+    console.error('Failed to download:', err)
+    showNotification('Failed to download')
+  }
+}
+
 // Close dropdown when clicking outside
 onMounted(() => {
   const handleClickOutside = (e: MouseEvent) => {
@@ -350,6 +391,12 @@ onMounted(() => {
   width: 16px;
   height: 16px;
   flex-shrink: 0;
+}
+
+.dropdown-divider {
+  height: 1px;
+  background-color: var(--color-border-primary);
+  margin: var(--spacing-2) 0;
 }
 
 /* Toast notification */
