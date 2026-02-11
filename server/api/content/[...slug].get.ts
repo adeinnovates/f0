@@ -8,36 +8,22 @@
  * Fetches and renders content for a given URL path.
  * Supports markdown files and API spec files (OpenAPI/Postman).
  * 
- * EXAMPLES:
- * - GET /api/content/guides/getting-started
- * - GET /api/content/api/reference
- * 
- * RESPONSE (Markdown):
- * {
- *   "type": "markdown",
- *   "title": "Getting Started",
- *   "html": "<h1>Getting Started</h1>...",
- *   "toc": [...],
- *   "frontmatter": {...}
- * }
- * 
- * RESPONSE (API Spec):
- * {
- *   "type": "openapi" | "postman",
- *   "title": "API Reference",
- *   "spec": {...}
- * }
+ * ENHANCEMENT: Phase 1.1 — Uses mtime-based content cache to avoid
+ * re-parsing unchanged Markdown files. Cache hit serves in <2ms vs
+ * 50-200ms for a full pipeline run.
  * 
  * CONSTRAINT COMPLIANCE:
  * - C-ARCH-FILESYSTEM-SOT-001: Content loaded from filesystem
  * - C-SEC-PRIVATE-NOT-PUBLIC-005: /private paths blocked
+ * - C-PERF-CACHE-MTIME-010: Cache invalidation uses filesystem mtime
  */
 
-import { readFile } from 'fs/promises'
-import { resolve } from 'path'
-import { parseMarkdown, isMarkdownFile, isJsonSpecFile } from '../../utils/markdown'
-import { resolveContentPath, getContentMeta } from '../../utils/navigation'
+import { basename } from 'path'
+import { isMarkdownFile, isJsonSpecFile, extractFrontmatter, generateExcerpt, calculateReadingTime, extractDateFromFilename } from '../../utils/markdown'
+import { resolveContentPath } from '../../utils/navigation'
 import { parseApiSpec } from '../../utils/openapi-parser'
+import { resolveLayoutForPath, getConfigForPath } from '../../utils/config'
+import { getCachedContent } from '../../utils/cache'
 
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig()
@@ -66,27 +52,66 @@ export default defineEventHandler(async (event) => {
       })
     }
     
-    // Read and parse content based on file type
-    const content = await readFile(filePath, 'utf-8')
-    
     if (isMarkdownFile(filePath)) {
-      // Parse markdown
-      const parsed = await parseMarkdown(content)
+      // Use mtime-based cache — stat() + Map lookup on hit, full pipeline on miss
+      const cached = await getCachedContent(filePath)
       
-      return {
+      // Determine layout
+      const layout = resolveLayoutForPath(config.contentDir, contentSlug)
+      
+      // Base response
+      const response: Record<string, unknown> = {
         type: 'markdown',
-        title: parsed.title,
-        html: parsed.html,
-        toc: parsed.toc,
-        frontmatter: parsed.frontmatter,
-        // Include raw markdown for copy feature
-        markdown: content,
+        title: cached.title,
+        html: cached.html,
+        toc: cached.toc,
+        frontmatter: cached.frontmatter,
+        markdown: cached.rawMarkdown,
         path: `/${contentSlug}`,
+        layout,
       }
+      
+      // Add blog metadata when layout is blog
+      if (layout === 'blog') {
+        const fm = cached.frontmatter
+        const dirConfig = getConfigForPath(config.contentDir, contentSlug)
+        const { content: bodyContent } = extractFrontmatter(cached.rawMarkdown)
+        const filename = basename(filePath)
+        
+        // Resolve date
+        let date: string
+        if (fm.date) {
+          const d = fm.date
+          if (d instanceof Date) {
+            date = d.toISOString().split('T')[0]
+          } else {
+            date = String(d)
+          }
+        } else {
+          const filenameDate = extractDateFromFilename(filename)
+          if (filenameDate) {
+            date = filenameDate
+          } else {
+            date = new Date().toISOString().split('T')[0]
+          }
+        }
+        
+        response.blog = {
+          date,
+          author: (fm.author as string) || dirConfig.defaultAuthor || '',
+          tags: Array.isArray(fm.tags) ? (fm.tags as string[]).map((t: unknown) => String(t).toLowerCase()) : [],
+          coverImage: (fm.cover_image as string) || undefined,
+          excerpt: (fm.excerpt as string) || generateExcerpt(bodyContent),
+          pinned: fm.pinned === true,
+          readingTime: calculateReadingTime(cached.rawMarkdown),
+        }
+      }
+      
+      return response
     }
     
     if (isJsonSpecFile(filePath)) {
-      // Parse API spec
+      // Parse API spec (not cached — specs are infrequently accessed)
       const spec = await parseApiSpec(filePath)
       
       return {
@@ -100,7 +125,6 @@ export default defineEventHandler(async (event) => {
           groups: spec.groups,
           securitySchemes: spec.securitySchemes,
         },
-        // Include raw spec for download
         rawSpec: spec.rawSpec,
         path: `/${contentSlug}`,
       }

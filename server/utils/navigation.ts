@@ -188,6 +188,9 @@ function extractOrderFromFilename(filename: string): number | null {
 function cleanFilename(filename: string): string {
   let name = basename(filename, extname(filename))
   
+  // Remove date prefix (2026-02-11-)
+  name = name.replace(/^\d{4}-\d{2}-\d{2}-/, '')
+  
   // Remove numeric prefix
   name = name.replace(/^\d+-/, '')
   
@@ -290,7 +293,11 @@ async function scanDirectory(
     for (const entry of entries) {
       const entryPath = join(dirPath, entry.name)
       // Build URL path - handle root path case to avoid double slashes
-      const cleanName = entry.name.replace(/^\d+-/, '').replace(/\.(md|json)$/, '')
+      // Strip both numeric prefixes (01-) and date prefixes (2026-02-11-)
+      const cleanName = entry.name
+        .replace(/^\d{4}-\d{2}-\d{2}-/, '')  // Date prefix: 2026-02-11-
+        .replace(/^\d+-/, '')                  // Numeric prefix: 01-
+        .replace(/\.(md|json)$/, '')
       
       // Construct path, avoiding double slashes when basePath is "/"
       let urlPath: string
@@ -490,6 +497,10 @@ export async function getContentMeta(
     for (const entry of entries) {
       // Match files like "01-getting-started.md" for slug "getting-started"
       if (entry.match(new RegExp(`^\\d+-${fileName}\\.(md|json)$`))) {
+        possiblePaths.unshift(join(dirPath, entry))
+      }
+      // Match date-prefixed files like "2026-02-11-building-filesystem-cms.md"
+      if (entry.match(new RegExp(`^\\d{4}-\\d{2}-\\d{2}-${fileName}\\.(md|json)$`))) {
         possiblePaths.unshift(join(dirPath, entry))
       }
     }

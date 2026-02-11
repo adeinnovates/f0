@@ -25,7 +25,9 @@
 
 import { readdir, readFile, stat } from 'fs/promises'
 import { join, relative } from 'path'
-import { extractFrontmatter, markdownToPlainText } from '../utils/markdown'
+import { extractFrontmatter, markdownToPlainText, isMarkdownFile } from '../utils/markdown'
+import { getCachedContent } from '../utils/cache'
+import { logger } from '../utils/logger'
 
 interface SearchResult {
   title: string
@@ -82,8 +84,27 @@ async function buildContentIndex(contentDir: string): Promise<ContentItem[]> {
           await scanDir(fullPath, sectionName || section)
         } else if (entry.name.endsWith('.md')) {
           try {
-            const content = await readFile(fullPath, 'utf-8')
-            const { frontmatter, content: mdContent } = extractFrontmatterSimple(content)
+            const fullFilePath = fullPath
+            
+            // Use the content cache for parsed data when possible
+            let title: string
+            let plainContent: string
+            
+            try {
+              const cached = await getCachedContent(fullFilePath)
+              title = cached.title
+              plainContent = cached.plainText
+            } catch {
+              // Fallback to lightweight extraction if cache fails
+              const content = await readFile(fullPath, 'utf-8')
+              const { frontmatter, content: mdContent } = extractFrontmatterSimple(content)
+              title = frontmatter?.title as string || ''
+              if (!title) {
+                const h1Match = mdContent.match(/^#\s+(.+)$/m)
+                title = h1Match ? h1Match[1] : entry.name.replace(/\.md$/, '')
+              }
+              plainContent = markdownToPlainTextSimple(mdContent)
+            }
             
             // Build URL path
             const relativePath = relative(contentDir, fullPath)
@@ -91,19 +112,11 @@ async function buildContentIndex(contentDir: string): Promise<ContentItem[]> {
               .replace(/\\/g, '/')
               .replace(/^\d+-/, '')
               .replace(/\/\d+-/g, '/')
+              .replace(/^\d{4}-\d{2}-\d{2}-/g, '')
+              .replace(/\/\d{4}-\d{2}-\d{2}-/g, '/')
               .replace(/\.md$/, '')
               .replace(/\/index$/, '')
               .replace(/^home$/, '')
-            
-            // Get title from frontmatter or first heading
-            let title = frontmatter?.title as string
-            if (!title) {
-              const h1Match = mdContent.match(/^#\s+(.+)$/m)
-              title = h1Match ? h1Match[1] : entry.name.replace(/\.md$/, '')
-            }
-            
-            // Convert to plain text for searching
-            const plainContent = markdownToPlainTextSimple(mdContent)
             
             items.push({
               title,

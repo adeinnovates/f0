@@ -5,6 +5,7 @@ F0 - SIDEBAR COMPONENT
 
 The left sidebar navigation showing the documentation tree.
 Supports recursive folders with collapse/expand.
+For blog sections, renders a simplified blog sidebar instead.
 
 USAGE:
 <Sidebar :open="isMobileMenuOpen" @close="closeMobileMenu" />
@@ -32,7 +33,13 @@ PROPS:
       Loading...
     </div>
     
-    <!-- Navigation tree -->
+    <!-- Blog sidebar variant -->
+    <BlogBlogSidebar
+      v-else-if="isBlogSection"
+      :path="blogSectionPath"
+    />
+    
+    <!-- Docs navigation tree -->
     <nav v-else class="sidebar-nav">
       <div
         v-for="item in currentSidebar"
@@ -55,7 +62,24 @@ defineProps<{
 defineEmits(['close'])
 
 // Navigation
-const { currentSidebar, loading, fetchNavigation } = useNavigation()
+const { currentSidebar, currentSection, loading, fetchNavigation } = useNavigation()
+
+// Route for detecting blog sections
+const route = useRoute()
+
+// Check if current section is a blog directory
+const { data: blogSectionCheck } = await useFetch<{ config: { layout: string } }>('/api/blog', {
+  query: computed(() => ({
+    path: currentSection.value.replace(/^\//, ''),
+  })),
+  watch: [currentSection],
+})
+
+const isBlogSection = computed(() => {
+  return blogSectionCheck.value?.config?.layout === 'blog'
+})
+
+const blogSectionPath = computed(() => currentSection.value)
 
 // Fetch navigation on mount
 onMounted(() => {

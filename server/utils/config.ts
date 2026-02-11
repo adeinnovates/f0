@@ -1,0 +1,206 @@
+/**
+ * =============================================================================
+ * F0 - DIRECTORY CONFIGURATION RESOLVER
+ * =============================================================================
+ * 
+ * Reads and caches `_config.md` files that declare layout type and settings
+ * for content directories. Supports per-directory configuration with no
+ * cascading — each directory manages its own layout.
+ * 
+ * RESOLUTION PRIORITY:
+ * 1. _config.md in the directory → use its layout value
+ * 2. F0_MODE=blog and path is root → treat as blog
+ * 3. Default → docs layout
+ * 
+ * CONSTRAINT COMPLIANCE:
+ * - C-ARCH-FILESYSTEM-SOT-001: Config lives in the content filesystem
+ * - C-OPS-ZERO-CONFIG-DEFAULT-008: Default is docs, no config needed
+ */
+
+import { readFileSync, existsSync } from 'fs'
+import { join, dirname } from 'path'
+import yaml from 'yaml'
+
+// =============================================================================
+// TYPE DEFINITIONS
+// =============================================================================
+
+export interface DirectoryConfig {
+  layout: 'docs' | 'blog'
+  title: string
+  description: string
+  postsPerPage: number
+  defaultAuthor: string
+  showToc: boolean
+  dateFormat: 'long' | 'short' | 'relative'
+}
+
+// =============================================================================
+// DEFAULTS
+// =============================================================================
+
+const DEFAULT_DOCS_CONFIG: DirectoryConfig = {
+  layout: 'docs',
+  title: '',
+  description: '',
+  postsPerPage: 10,
+  defaultAuthor: '',
+  showToc: true,
+  dateFormat: 'long',
+}
+
+const DEFAULT_BLOG_CONFIG: DirectoryConfig = {
+  layout: 'blog',
+  title: 'Blog',
+  description: '',
+  postsPerPage: 10,
+  defaultAuthor: '',
+  showToc: false,
+  dateFormat: 'long',
+}
+
+// =============================================================================
+// CACHE
+// =============================================================================
+
+const configCache = new Map<string, DirectoryConfig>()
+let cacheTimestamp = 0
+const CACHE_TTL = 5000 // 5 seconds in dev
+
+function isCacheValid(): boolean {
+  if (process.env.NODE_ENV === 'production') return true
+  return (Date.now() - cacheTimestamp) < CACHE_TTL
+}
+
+/**
+ * Invalidate the config cache (call after content changes)
+ */
+export function invalidateConfigCache(): void {
+  configCache.clear()
+  cacheTimestamp = 0
+}
+
+// =============================================================================
+// FRONTMATTER EXTRACTION (lightweight, no full markdown parse)
+// =============================================================================
+
+function extractConfigFrontmatter(content: string): Record<string, unknown> {
+  const match = content.match(/^---\n([\s\S]*?)\n---/)
+  if (!match) return {}
+  
+  try {
+    return yaml.parse(match[1]) || {}
+  } catch {
+    console.warn('[Config] Failed to parse _config.md frontmatter')
+    return {}
+  }
+}
+
+// =============================================================================
+// MAIN RESOLVER
+// =============================================================================
+
+/**
+ * Parse a _config.md file into a DirectoryConfig
+ */
+function parseConfigFile(configPath: string): DirectoryConfig {
+  try {
+    const content = readFileSync(configPath, 'utf-8')
+    const fm = extractConfigFrontmatter(content)
+    
+    const layout = fm.layout === 'blog' ? 'blog' : 'docs'
+    const defaults = layout === 'blog' ? DEFAULT_BLOG_CONFIG : DEFAULT_DOCS_CONFIG
+    
+    return {
+      layout,
+      title: (fm.title as string) || defaults.title,
+      description: (fm.description as string) || defaults.description,
+      postsPerPage: typeof fm.posts_per_page === 'number' ? fm.posts_per_page : defaults.postsPerPage,
+      defaultAuthor: (fm.default_author as string) || defaults.defaultAuthor,
+      showToc: typeof fm.show_toc === 'boolean' ? fm.show_toc : defaults.showToc,
+      dateFormat: (['long', 'short', 'relative'].includes(fm.date_format as string)
+        ? fm.date_format as 'long' | 'short' | 'relative'
+        : defaults.dateFormat),
+    }
+  } catch (error) {
+    console.warn(`[Config] Error reading ${configPath}:`, error)
+    return { ...DEFAULT_DOCS_CONFIG }
+  }
+}
+
+/**
+ * Resolve the configuration for a content directory.
+ * 
+ * @param contentDir - Root content directory path
+ * @param dirPath - Relative directory path within content (e.g., 'blog', '' for root)
+ * @returns DirectoryConfig for the directory
+ */
+export function resolveDirectoryConfig(contentDir: string, dirPath: string): DirectoryConfig {
+  // Normalize dirPath
+  const normalizedDir = dirPath.replace(/^\//, '').replace(/\/$/, '') || ''
+  const cacheKey = `${contentDir}:${normalizedDir}`
+  
+  // Check cache
+  if (configCache.has(cacheKey) && isCacheValid()) {
+    return configCache.get(cacheKey)!
+  }
+  
+  // 1. Check for _config.md in this directory
+  const fullDirPath = normalizedDir ? join(contentDir, normalizedDir) : contentDir
+  const configPath = join(fullDirPath, '_config.md')
+  
+  if (existsSync(configPath)) {
+    const config = parseConfigFile(configPath)
+    configCache.set(cacheKey, config)
+    cacheTimestamp = Date.now()
+    return config
+  }
+  
+  // 2. If this is the root directory and F0_MODE=blog, apply blog defaults
+  const f0Mode = process.env.F0_MODE || ''
+  if (normalizedDir === '' && f0Mode === 'blog') {
+    const config: DirectoryConfig = {
+      ...DEFAULT_BLOG_CONFIG,
+      title: process.env.NUXT_PUBLIC_SITE_NAME || 'Blog',
+      description: process.env.NUXT_PUBLIC_SITE_DESCRIPTION || '',
+    }
+    configCache.set(cacheKey, config)
+    cacheTimestamp = Date.now()
+    return config
+  }
+  
+  // 3. Default: docs layout
+  const config = { ...DEFAULT_DOCS_CONFIG }
+  configCache.set(cacheKey, config)
+  cacheTimestamp = Date.now()
+  return config
+}
+
+/**
+ * Determine the layout for a given content path by checking its
+ * nearest directory's _config.md
+ * 
+ * @param contentDir - Root content directory path
+ * @param contentPath - URL path (e.g., '/blog/my-post' or 'blog/my-post')
+ * @returns 'docs' or 'blog'
+ */
+export function resolveLayoutForPath(contentDir: string, contentPath: string): 'docs' | 'blog' {
+  // Normalize: strip leading slash, get directory portion
+  const normalized = contentPath.replace(/^\//, '')
+  
+  // Get the first path segment as the directory
+  const firstSegment = normalized.split('/')[0] || ''
+  
+  // Check if this segment has a _config.md
+  const config = resolveDirectoryConfig(contentDir, firstSegment)
+  return config.layout
+}
+
+/**
+ * Get the full directory config for a content path
+ */
+export function getConfigForPath(contentDir: string, contentPath: string): DirectoryConfig {
+  const normalized = contentPath.replace(/^\//, '')
+  const firstSegment = normalized.split('/')[0] || ''
+  return resolveDirectoryConfig(contentDir, firstSegment)
+}

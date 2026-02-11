@@ -352,7 +352,7 @@ function remarkApiEndpoints() {
 /**
  * Escape HTML special characters
  */
-function escapeHtml(text: string): string {
+export function escapeHtml(text: string): string {
   return text
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -508,7 +508,7 @@ function rehypeCodeBlocks() {
  * order: 1
  * ---
  */
-function extractFrontmatter(content: string): { 
+export function extractFrontmatter(content: string): { 
   frontmatter: MarkdownFrontmatter
   content: string 
 } {
@@ -681,6 +681,84 @@ export async function parseMarkdown(content: string): Promise<ParsedMarkdown> {
 // =============================================================================
 
 /**
+ * Generate an excerpt from markdown body content
+ * Strips all markdown syntax, takes the first N characters, truncates at word boundary
+ */
+export function generateExcerpt(markdownBody: string, maxLength: number = 160): string {
+  let text = markdownBody
+
+  // Remove frontmatter if accidentally included
+  text = text.replace(/^---\n[\s\S]*?\n---\n?/, '')
+
+  // Remove code blocks
+  text = text.replace(/```[\s\S]*?```/g, '')
+  text = text.replace(/`[^`]+`/g, '')
+
+  // Remove callout markers
+  text = text.replace(/:::(info|warning|error|success|tip|note|danger)\s*/g, '')
+  text = text.replace(/:::\s*/g, '')
+
+  // Remove YouTube embeds
+  text = text.replace(/::youtube\[[^\]]*\]\{[^}]+\}/g, '')
+
+  // Remove headings
+  text = text.replace(/^#{1,6}\s+/gm, '')
+
+  // Remove images
+  text = text.replace(/!\[[^\]]*\]\([^)]+\)/g, '')
+
+  // Convert links to text
+  text = text.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+
+  // Remove bold/italic/strikethrough
+  text = text.replace(/\*\*([^*]+)\*\*/g, '$1')
+  text = text.replace(/\*([^*]+)\*/g, '$1')
+  text = text.replace(/__([^_]+)__/g, '$1')
+  text = text.replace(/_([^_]+)_/g, '$1')
+  text = text.replace(/~~([^~]+)~~/g, '$1')
+
+  // Remove HTML tags
+  text = text.replace(/<[^>]+>/g, '')
+
+  // Remove horizontal rules
+  text = text.replace(/^---+$/gm, '')
+  text = text.replace(/^\*\*\*+$/gm, '')
+
+  // Collapse whitespace
+  text = text.replace(/\n+/g, ' ')
+  text = text.replace(/\s+/g, ' ')
+  text = text.trim()
+
+  if (text.length <= maxLength) return text
+
+  // Truncate at last word boundary
+  const truncated = text.slice(0, maxLength)
+  const lastSpace = truncated.lastIndexOf(' ')
+  const result = lastSpace > 0 ? truncated.slice(0, lastSpace) : truncated
+
+  return result + '...'
+}
+
+/**
+ * Calculate estimated reading time in minutes
+ * Based on average reading speed of 200 words per minute
+ */
+export function calculateReadingTime(markdownBody: string): number {
+  // Strip frontmatter
+  const text = markdownBody.replace(/^---\n[\s\S]*?\n---\n?/, '')
+  const words = text.split(/\s+/).filter(w => w.length > 0).length
+  return Math.max(1, Math.ceil(words / 200))
+}
+
+/**
+ * Extract date from a filename prefix (YYYY-MM-DD-slug.md)
+ */
+export function extractDateFromFilename(filename: string): string | null {
+  const match = filename.match(/^(\d{4}-\d{2}-\d{2})-/)
+  return match ? match[1] : null
+}
+
+/**
  * Check if content is markdown based on extension
  */
 export function isMarkdownFile(filename: string): boolean {
@@ -704,4 +782,110 @@ export function slugify(text: string): string {
     .replace(/[^\w\s-]/g, '')
     .replace(/[\s_-]+/g, '-')
     .replace(/^-+|-+$/g, '')
+}
+
+// =============================================================================
+// ERROR-RESILIENT PARSING (Phase 1.4)
+// =============================================================================
+
+/** Maximum file size in bytes that we'll attempt to parse (1MB) */
+const MAX_PARSE_SIZE = 1_048_576
+
+/**
+ * Safely extract frontmatter — returns empty object on any failure.
+ * Never throws.
+ */
+export function extractFrontmatterSafe(content: string): MarkdownFrontmatter {
+  try {
+    const { frontmatter } = extractFrontmatter(content)
+    return frontmatter
+  } catch {
+    return {}
+  }
+}
+
+/**
+ * Safely extract a title from content — returns the file path as fallback.
+ * Never throws.
+ */
+export function extractTitleSafe(content: string, fallback: string = 'Untitled'): string {
+  try {
+    // Try frontmatter title first
+    const fm = extractFrontmatterSafe(content)
+    if (fm.title && typeof fm.title === 'string') return fm.title
+
+    // Try first H1
+    const match = content.match(/^#\s+(.+)$/m)
+    if (match) return match[1].trim()
+
+    return fallback
+  } catch {
+    return fallback
+  }
+}
+
+/**
+ * Error-resilient markdown parser.
+ * 
+ * Wraps the full remark/rehype pipeline in an error boundary. If parsing
+ * fails for any reason (malformed YAML, Unicode issues in code blocks,
+ * deeply nested lists causing stack overflow, etc.), returns a graceful
+ * fallback that shows the raw markdown in a <pre> block with an error notice.
+ * 
+ * DESIGN PRINCIPLE: A parsing error in one file should never affect other files.
+ * The error page should be informative (dev) and graceful (production).
+ * 
+ * @param content - Raw markdown content including frontmatter
+ * @param filePath - File path for error reporting (optional)
+ * @returns ParsedMarkdown — always succeeds, never throws
+ */
+export async function parseMarkdownSafe(content: string, filePath: string = 'unknown'): Promise<ParsedMarkdown> {
+  // Guard: reject files over MAX_PARSE_SIZE
+  if (content.length > MAX_PARSE_SIZE) {
+    const title = extractTitleSafe(content, filePath)
+    const isProduction = process.env.NODE_ENV === 'production'
+    return {
+      html: `<div class="callout callout-warning">
+        <p><strong>Large file.</strong> This file exceeds the maximum rendering size (${Math.round(MAX_PARSE_SIZE / 1024)}KB). ${isProduction ? '' : `Actual size: ${Math.round(content.length / 1024)}KB.`}</p>
+      </div><pre>${escapeHtml(content.slice(0, 10000))}${content.length > 10000 ? '\n\n[... truncated ...]' : ''}</pre>`,
+      frontmatter: extractFrontmatterSafe(content),
+      toc: [],
+      plainText: content.slice(0, MAX_PARSE_SIZE),
+      title,
+    }
+  }
+
+  try {
+    return await parseMarkdown(content)
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    const title = extractTitleSafe(content, filePath)
+    const isProduction = process.env.NODE_ENV === 'production'
+
+    // Log the error with context
+    console.error(`[f0] Markdown parsing failed for ${filePath}:`, errorMessage)
+
+    // Fallback: render raw markdown in a <pre> block with an error notice
+    const errorNotice = isProduction
+      ? '<p>This page could not be rendered. Please contact the site administrator.</p>'
+      : `<p>This page could not be rendered. The Markdown source is shown below.</p>
+         <p><small>Error: ${escapeHtml(errorMessage)}</small></p>`
+
+    // Try to get plainText even if full parse failed
+    let plainText: string
+    try {
+      plainText = markdownToPlainText(content)
+    } catch {
+      // If even plainText extraction fails, use raw content
+      plainText = content
+    }
+
+    return {
+      html: `<div class="callout callout-error">${errorNotice}</div><pre>${escapeHtml(content)}</pre>`,
+      frontmatter: extractFrontmatterSafe(content),
+      toc: [],
+      plainText,
+      title,
+    }
+  }
 }

@@ -1,3 +1,4 @@
 - [Home](/)
 - [Guides](/guides)
 - [API Reference](/api)
+- [Blog](/blog)

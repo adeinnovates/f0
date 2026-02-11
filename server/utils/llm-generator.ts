@@ -37,8 +37,10 @@
 import { readdir, readFile, stat } from 'fs/promises'
 import { join, relative, extname, basename } from 'path'
 import { buildNavigation, type TopNavItem, type SidebarItem } from './navigation'
-import { markdownToPlainText, isMarkdownFile, isJsonSpecFile } from './markdown'
+import { markdownToPlainText, isMarkdownFile, isJsonSpecFile, extractFrontmatter, extractDateFromFilename, extractFrontmatterSafe } from './markdown'
 import { parseApiSpec, apiSpecToPlainText } from './openapi-parser'
+import { resolveLayoutForPath } from './config'
+import { logger } from './logger'
 
 // =============================================================================
 // TYPE DEFINITIONS
@@ -67,6 +69,13 @@ interface ContentItem {
   title: string
   content: string    // Plain text content
   order: number
+  // Blog metadata (only present for blog posts)
+  blogMeta?: {
+    type: 'blog-post'
+    date: string
+    author: string
+    tags: string[]
+  }
 }
 
 // =============================================================================
@@ -89,8 +98,8 @@ async function collectContent(
     for (const entry of entries) {
       const entryPath = join(dirPath, entry.name)
       const entryUrlPath = urlPath 
-        ? `${urlPath}/${entry.name.replace(/^\d+-/, '').replace(/\.(md|json)$/, '')}`
-        : entry.name.replace(/^\d+-/, '').replace(/\.(md|json)$/, '')
+        ? `${urlPath}/${entry.name.replace(/^\d{4}-\d{2}-\d{2}-/, '').replace(/^\d+-/, '').replace(/\.(md|json)$/, '')}`
+        : entry.name.replace(/^\d{4}-\d{2}-\d{2}-/, '').replace(/^\d+-/, '').replace(/\.(md|json)$/, '')
       
       // Skip hidden files, special files, and assets
       if (
@@ -108,9 +117,20 @@ async function collectContent(
         const subItems = await collectContent(entryPath, contentDir, entryUrlPath)
         items.push(...subItems)
       } else if (isMarkdownFile(entry.name)) {
-        // Process markdown file
-        const rawContent = await readFile(entryPath, 'utf-8')
-        const plainText = markdownToPlainText(rawContent)
+        // Process markdown file — skip on failure rather than crashing
+        try {
+          const rawContent = await readFile(entryPath, 'utf-8')
+          
+          // Use safe plain text extraction
+          let plainText: string
+          try {
+            plainText = markdownToPlainText(rawContent)
+          } catch {
+            // If even plain text extraction fails, use raw content stripped of frontmatter
+            logger.warn('Plain text extraction failed, using raw content', { path: entryPath })
+            const fmEnd = rawContent.match(/^---\n[\s\S]*?\n---\n/)
+            plainText = fmEnd ? rawContent.slice(fmEnd[0].length) : rawContent
+          }
         
         // Extract title from frontmatter or H1
         let title = entry.name.replace(/^\d+-/, '').replace(/\.md$/, '')
@@ -140,7 +160,38 @@ async function collectContent(
           title,
           content: plainText,
           order,
+          // Check if this file is in a blog directory and add metadata
+          blogMeta: (() => {
+            try {
+              const layout = resolveLayoutForPath(contentDir, entryUrlPath)
+              if (layout === 'blog') {
+                const { frontmatter } = extractFrontmatter(rawContent)
+                let date = ''
+                if (frontmatter.date) {
+                  const d = frontmatter.date
+                  date = d instanceof Date ? d.toISOString().split('T')[0] : String(d)
+                } else {
+                  const fd = extractDateFromFilename(entry.name)
+                  if (fd) date = fd
+                }
+                return {
+                  type: 'blog-post' as const,
+                  date,
+                  author: (frontmatter.author as string) || '',
+                  tags: Array.isArray(frontmatter.tags) ? (frontmatter.tags as string[]).map(t => String(t)) : [],
+                }
+              }
+            } catch {}
+            return undefined
+          })(),
         })
+        } catch (fileError) {
+          // Skip this file but log the error — don't crash the entire endpoint
+          logger.warn('Skipping file in llms.txt generation', {
+            path: entryPath,
+            error: fileError instanceof Error ? fileError.message : String(fileError),
+          })
+        }
       } else if (isJsonSpecFile(entry.name)) {
         // Process API spec file
         try {
@@ -253,6 +304,15 @@ export async function generateLlmText(
     
     lines.push(`## PATH: ${breadcrumb}`)
     lines.push(`(Source: ${item.sourcePath})`)
+    
+    // Blog-specific metadata headers
+    if (item.blogMeta) {
+      lines.push(`TYPE: ${item.blogMeta.type}`)
+      if (item.blogMeta.date) lines.push(`DATE: ${item.blogMeta.date}`)
+      if (item.blogMeta.author) lines.push(`AUTHOR: ${item.blogMeta.author}`)
+      if (item.blogMeta.tags.length > 0) lines.push(`TAGS: ${item.blogMeta.tags.join(', ')}`)
+    }
+    
     lines.push('')
     lines.push(item.content)
     lines.push('')

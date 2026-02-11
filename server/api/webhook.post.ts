@@ -26,6 +26,8 @@
 
 import { createHmac, timingSafeEqual } from 'crypto'
 import { invalidateNavigationCache } from '../utils/navigation'
+import { invalidateContentCache } from '../utils/cache'
+import { invalidateConfigCache } from '../utils/config'
 
 // =============================================================================
 // SIGNATURE VERIFICATION
@@ -112,10 +114,12 @@ export default defineEventHandler(async (event) => {
       // Only process pushes to main/master branch
       const branch = body.ref?.replace('refs/heads/', '')
       if (branch === 'main' || branch === 'master') {
-        // Invalidate caches
+        // Invalidate all caches
         invalidateNavigationCache()
+        invalidateContentCache()
+        invalidateConfigCache()
         
-        console.log('[Webhook] Caches invalidated')
+        console.log('[Webhook] All caches invalidated')
         
         // Note: In a full implementation, you might:
         // 1. Run `git pull` to update content

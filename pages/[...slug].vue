@@ -20,19 +20,28 @@
       <p>Loading content...</p>
     </div>
     
-    <!-- Error state (404) -->
-    <div v-else-if="error" class="error-page">
+    <!-- Error state (404) — or Blog Index -->
+    <div v-else-if="error && !isBlogIndex" class="error-page">
       <h1>Page Not Found</h1>
       <p>The requested documentation page could not be found.</p>
       <p class="error-path">{{ route.path }}</p>
       <NuxtLink to="/" class="btn btn-primary">Go to Home</NuxtLink>
     </div>
     
+    <!-- Blog Index (when path is a blog directory root) -->
+    <BlogBlogIndex v-else-if="isBlogIndex" :path="blogIndexPath" />
+    
     <!-- Content -->
     <article v-else class="content">
-      <!-- Markdown content -->
+      <!-- Blog post layout -->
+      <BlogBlogPostLayout
+        v-if="content?.layout === 'blog' && content?.type === 'markdown'"
+        :content="content"
+      />
+      
+      <!-- Markdown content (docs layout) -->
       <ContentMarkdownRenderer 
-        v-if="content?.type === 'markdown'"
+        v-else-if="content?.type === 'markdown'"
         :html="content.html" 
         :toc="content.toc"
         :title="content.title"
@@ -72,6 +81,16 @@ interface ContentResponse {
   spec?: ApiSpec
   markdown?: string  // Raw markdown for copy feature
   path?: string      // Page path for download feature
+  layout?: 'docs' | 'blog'
+  blog?: {
+    date: string
+    author: string
+    tags: string[]
+    coverImage?: string
+    excerpt: string
+    pinned: boolean
+    readingTime: number
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -99,12 +118,39 @@ const { data: content, pending, error } = await useFetch<ContentResponse>(
 )
 
 // ---------------------------------------------------------------------------
+// BLOG INDEX DETECTION
+// ---------------------------------------------------------------------------
+// If content 404s, check if this path is a blog directory root
+// If so, render BlogIndex instead of the error page
+
+const isBlogIndex = ref(false)
+const blogIndexPath = computed(() => '/' + slug.value)
+
+// Check if this is a blog directory when content returns 404
+watch([error, pending], async () => {
+  if (error.value && !pending.value) {
+    try {
+      const blogCheck = await $fetch<{ config: { layout: string } }>('/api/blog', {
+        query: { path: slug.value },
+      })
+      if (blogCheck?.config?.layout === 'blog') {
+        isBlogIndex.value = true
+      }
+    } catch {
+      // Not a blog directory, show normal error
+    }
+  } else {
+    isBlogIndex.value = false
+  }
+}, { immediate: true })
+
+// ---------------------------------------------------------------------------
 // SEO
 // ---------------------------------------------------------------------------
 
 useSeo({
   title: content.value?.title,
-  description: content.value?.description,
+  description: content.value?.blog?.excerpt || content.value?.description,
 })
 
 // Update page title when content changes
@@ -112,9 +158,26 @@ watch(content, (newContent) => {
   if (newContent?.title) {
     useSeo({
       title: newContent.title,
-      description: newContent.description,
+      description: newContent.blog?.excerpt || newContent.description,
     })
   }
+})
+
+// Blog-specific SEO meta tags
+useHead(() => {
+  if (content.value?.layout === 'blog' && content.value?.blog) {
+    const blog = content.value.blog
+    return {
+      meta: [
+        { property: 'article:published_time', content: blog.date },
+        ...(blog.author ? [{ property: 'article:author', content: blog.author }] : []),
+        ...(blog.tags?.length ? [{ property: 'article:tag', content: blog.tags.join(', ') }] : []),
+        { property: 'og:type', content: 'article' },
+        ...(blog.coverImage ? [{ property: 'og:image', content: blog.coverImage }] : []),
+      ],
+    }
+  }
+  return {}
 })
 
 // ---------------------------------------------------------------------------
@@ -125,8 +188,12 @@ watch(content, (newContent) => {
 const { setTocItems } = useToc()
 
 // Update TOC when content loads
+// Blog posts hide TOC by default (can be overridden via _config.md show_toc)
 watch(content, (newContent) => {
-  if (newContent?.toc) {
+  if (newContent?.layout === 'blog') {
+    // Blog posts don't show TOC by default
+    setTocItems([])
+  } else if (newContent?.toc) {
     setTocItems(newContent.toc)
   } else {
     setTocItems([])

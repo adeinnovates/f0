@@ -30,6 +30,8 @@
 import { writeFile, mkdir } from 'fs/promises'
 import { join, dirname, extname, normalize } from 'path'
 import { invalidateNavigationCache } from '../../utils/navigation'
+import { invalidateContentCache } from '../../utils/cache'
+import { invalidateConfigCache } from '../../utils/config'
 
 // =============================================================================
 // CONFIGURATION
@@ -207,8 +209,10 @@ export default defineEventHandler(async (event) => {
     // Write file
     await writeFile(fullPath, fileData.data)
     
-    // Invalidate caches
+    // Invalidate all caches
     invalidateNavigationCache()
+    invalidateContentCache()
+    invalidateConfigCache()
     
     console.log(`[Upload] File saved: ${cleanPath} by ${event.context.auth?.email || 'anonymous'}`)
     

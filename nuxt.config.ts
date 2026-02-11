@@ -53,6 +53,9 @@ export default defineNuxtConfig({
     contentDir: process.env.CONTENT_DIR || './content',
     privateDir: process.env.PRIVATE_DIR || './private',
 
+    // f0 mode: 'docs' (default) or 'blog' (convenience for pure-blog sites)
+    f0Mode: process.env.F0_MODE || 'docs',
+
     // Public keys (exposed to client)
     public: {
       // Google Analytics - only injected if set
@@ -72,6 +75,7 @@ export default defineNuxtConfig({
   css: [
     '@picocss/pico/css/pico.min.css',  // Semantic HTML styling base
     '~/assets/css/main.css',             // Custom theme overrides
+    '~/assets/css/blog.css',             // Blog-specific styles (scoped to .blog-layout)
   ],
 
   // ---------------------------------------------------------------------------
@@ -154,9 +158,25 @@ export default defineNuxtConfig({
         } 
       },
       
+      // RSS feed - moderate cache
+      '/feed.xml': {
+        headers: {
+          'cache-control': 'public, max-age=3600',
+          'content-type': 'application/rss+xml; charset=utf-8'
+        }
+      },
+      
       // API routes - no caching
       '/api/**': { 
         headers: { 'cache-control': 'no-store' } 
+      },
+      
+      // Health/readiness endpoints - no caching, fast response
+      '/_health': {
+        headers: { 'cache-control': 'no-store' }
+      },
+      '/_ready': {
+        headers: { 'cache-control': 'no-store' }
       },
     },
   },

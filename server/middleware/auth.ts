@@ -40,6 +40,8 @@ const PUBLIC_ROUTES = [
   '/login',
   '/api/auth/request-otp',
   '/api/auth/verify-otp',
+  '/_health',
+  '/_ready',
 ]
 
 /**
