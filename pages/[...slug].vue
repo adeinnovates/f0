@@ -29,12 +29,12 @@
     </div>
     
     <!-- Blog Index (when path is a blog directory root) -->
-    <BlogBlogIndex v-else-if="isBlogIndex" :path="blogIndexPath" />
+    <BlogIndex v-else-if="isBlogIndex" :path="blogIndexPath" />
     
     <!-- Content -->
     <article v-else class="content">
       <!-- Blog post layout -->
-      <BlogBlogPostLayout
+      <BlogPostLayout
         v-if="content?.layout === 'blog' && content?.type === 'markdown'"
         :content="content"
       />

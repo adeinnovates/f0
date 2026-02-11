@@ -34,7 +34,7 @@ PROPS:
     </div>
     
     <!-- Blog sidebar variant -->
-    <BlogBlogSidebar
+    <BlogSidebar
       v-else-if="isBlogSection"
       :path="blogSectionPath"
     />

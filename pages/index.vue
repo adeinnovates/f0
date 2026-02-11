@@ -20,7 +20,7 @@
     </Head>
     
     <!-- Blog Mode: Render BlogIndex -->
-    <BlogBlogIndex v-if="isBlogMode" path="/" />
+    <BlogIndex v-if="isBlogMode" path="/" />
     
     <!-- Docs Mode: Standard home page -->
     <template v-else>
