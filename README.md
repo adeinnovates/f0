@@ -1,298 +1,405 @@
 # f0 (Folder Zero)
 
-> The "Folder 0" Documentation Platform.  
 > A filesystem-based documentation engine that renders a single source of truth for **Humans** (UI), **Search Engines** (SEO), and **AI Agents** (LLM Context).
 
 ---
 
-## The Philosophy: Zero Config. Tri-Brid Output.
+## The Philosophy
 
 Documentation tools have become too complex. f0 strips away the database, the admin dashboard, and the configuration files.
 
 **The Filesystem is the CMS.**
 
-If you can write Markdown and organize folders, you can deploy f0.
-
-### The Tri-Brid Engine
-
-f0 takes your raw Markdown and renders it simultaneously in three modes:
-
-- **Human Mode**: A beautiful, "Notion-like" Vue.js interface (Pico.css).
-- **SEO Mode**: Server-Side Rendered (SSR) HTML for crawlers.
-- **Agent Mode**: A stripped, context-dense stream at `/llms.txt` for AI coding agents (Cursor, Copilot).
+Write Markdown. Organize folders. Deploy. One source file renders three ways: a Vue.js interface for humans, SSR HTML for crawlers, and structured plain text for AI agents at `/llms.txt`.
 
 ---
 
-## ⚡ Quick Start
+## Quick Start
 
 ```bash
-# 1. Clone f0
+# Clone and run
 git clone https://github.com/your-org/f0.git
 cd f0
-
-# 2. Install dependencies
 npm install
-
-# 3. Run the development server
 npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000). You are done.
 
-### Alternative: Download Release
-
-```bash
-# 1. Download and extract the latest release
-unzip f0.zip
-cd f0
-
-# 2. Install dependencies
-npm install
-
-# 3. Run the development server
-npm run dev
-```
-
 ---
 
-## 📂 The "Folder 0" Structure
+## Content Structure
 
 There is no database. Your folder structure *is* the site structure.
 
 ```
-/f0-root
-├── content/
-│   ├── nav.md                # ← The Top Navigation Bar (Just a list)
-│   ├── home.md               # ← The Landing Page
-│   │
-│   ├── briefs/               # ← Tab: "Briefs"
-│   │   ├── 01-intro.md
-│   │   └── 02-concept.md
-│   │
-│   ├── guides/               # ← Tab: "Guides"
-│   │   └── setup/
-│   │       └── install.md    # ← Renders at /guides/setup/install
-│   │
-│   ├── api/                  # ← Tab: "API"
-│   │   └── v1-users.json     # ← Auto-rendered OpenAPI/Swagger
-│   │
-│   └── assets/               # ← Images and static files
-│       └── images/
+content/
+├── nav.md                       ← Top navigation bar (required)
+├── home.md                      ← Landing page (renders at /)
+├── _brand.md                    ← White-label branding (optional)
 │
-├── private/                  # ← SECURE ZONE (Requires OTP)
-│   ├── allowlist.json        # ← Auth Access Control
-│   └── internal-doc.md
+├── guides/                      ← Tab: "Guides"
+│   ├── _config.md               ← Per-directory config
+│   ├── 01-getting-started.md    ← Renders at /guides/getting-started
+│   └── authentication/
+│       └── overview.md          ← Renders at /guides/authentication/overview
 │
-└── nuxt.config.ts            # ← The only config file
+├── blog/                        ← Tab: "Blog"
+│   ├── _config.md               ← layout: blog
+│   ├── 2026-02-08-first-post.md
+│   └── 2026-02-11-second-post.md
+│
+├── api/                         ← Tab: "API"
+│   └── openapi.json             ← Auto-rendered OpenAPI/Swagger spec
+│
+└── assets/
+    ├── images/                  ← Content images (auto-optimized)
+    └── css/
+        └── custom.css           ← Custom CSS override (optional)
 ```
 
 ### Navigation (`nav.md`)
 
-Define your top navigation bar with a simple Markdown list:
-
 ```markdown
-- [Home](/)
 - [Guides](/guides)
+- [Blog](/blog)
 - [API Reference](/api)
-- [External Link](https://example.com)
+- [GitHub](https://github.com/your-org/f0)
 ```
 
-### Ordering Files
+Each list item maps to a top-level folder. External links are supported. Order in the file determines order in the header.
 
-Prefix filenames with numbers to control sidebar order:
+### File Ordering
+
+Prefix filenames with numbers to control sidebar order. The prefix is stripped from URLs:
 
 ```
 guides/
-├── 01-getting-started.md    # ← Appears first
-├── 02-configuration.md      # ← Appears second
-└── 03-deployment.md         # ← Appears third
+├── 01-getting-started.md    → /guides/getting-started
+├── 02-configuration.md      → /guides/configuration
+└── 03-deployment.md         → /guides/deployment
 ```
 
-The numeric prefix is stripped from URLs: `01-getting-started.md` → `/guides/getting-started`
+Blog posts use date prefixes: `2026-02-11-post-title.md` → `/blog/post-title`.
 
-### Callouts
+### Frontmatter
 
-Use fenced callout syntax for highlighted information:
+```yaml
+---
+title: Getting Started
+description: Set up f0 in under 5 minutes
+order: 1
+---
+```
+
+Blog posts support additional fields: `date`, `author`, `tags`, `cover_image`, `excerpt`, `pinned`.
+
+---
+
+## Custom Markdown Syntax
+
+f0 supports GitHub Flavored Markdown plus custom extensions.
+
+### Callout Boxes
 
 ```markdown
 :::info
-
-This is an informational callout.
-
+Informational callout with full Markdown support inside.
 :::
 
 :::warning
-
-This is a warning callout.
-
+Warning callout.
 :::
 
 :::error
-
-This is an error callout.
-
+Error/danger callout.
 :::
 
 :::success
-
-This is a success callout.
-
+Success callout.
 :::
 ```
 
----
+### API Endpoint Blocks
 
-## 🤖 AI-First Documentation (`/llms.txt`)
+```markdown
+:::api GET /users/{id}
+Get user by ID
 
-f0 treats AI agents as first-class citizens. We do not force LLMs to scrape HTML.
+Retrieves a specific user by their unique identifier.
+:::
 
-Access [http://localhost:3000/llms.txt](http://localhost:3000/llms.txt) to see what the AI sees:
+:::api POST /users
+Create user
 
-- **Stripped**: No CSS, no navbars, no footers.
-- **Contextualized**: Header injection (`Path: Guides > Setup`) ensures the LLM understands hierarchy.
-- **Dense**: Optimized for context-window efficiency.
-
-### Example Output
-
-```
-================================================================================
-PATH: /guides/getting-started
-TITLE: Getting Started
-================================================================================
-
-# Getting Started
-
-Welcome to the documentation. This guide will help you...
-
-================================================================================
-PATH: /api/users
-TITLE: Users API
-================================================================================
-
-# Users API
-
-The Users API provides endpoints for managing user accounts...
+Creates a new user account.
+:::
 ```
 
----
+Methods get colored badges: GET (green), POST (blue), PUT (orange), PATCH (purple), DELETE (red).
 
-## 🔐 Private Mode (Lite-Auth)
+### Embeds
 
-Secure internal documentation without an Identity Provider.
+```markdown
+::youtube[Video Title]{id=dQw4w9WgXcQ}
+::embed[Walkthrough]{url=https://www.loom.com/share/abc123}
+::embed[Design]{url=https://www.figma.com/file/xyz}
+::embed[Code Sample]{url=https://gist.github.com/user/abc}
+```
 
-### Setup
+Supported: YouTube, Loom, Figma, GitHub Gists. Unknown URLs render as styled link cards.
 
-1. Set environment variable:
-   ```bash
-   AUTH_MODE=private
-   ```
+### Mermaid Diagrams
 
-2. Add authorized emails to `/private/allowlist.json`:
-   ```json
-   {
-     "emails": [
-       "alice@company.com",
-       "bob@company.com"
-     ]
-   }
-   ```
+```markdown
+::mermaid
+graph TD
+  A[Start] --> B[Process]
+  B --> C[End]
+::
+```
 
-3. Configure email delivery (AWS SES):
-   ```bash
-   AWS_REGION=us-east-1
-   AWS_ACCESS_KEY_ID=your-key
-   AWS_SECRET_ACCESS_KEY=your-secret
-   EMAIL_FROM=no-reply@yourdomain.com
-   ```
-
-### How It Works
-
-1. User requests a private route
-2. f0 challenges for email address
-3. 8-digit OTP sent via email
-4. OTP verified → JWT issued → Access granted
+Diagram source is preserved in `/llms.txt` so AI agents understand the structure.
 
 ---
 
-## 🚀 Deployment
+## White-Label Branding
 
-### Docker (Recommended)
+Deploy for any client without touching source code. Create `content/_brand.md`:
+
+```yaml
+---
+logo: ./assets/images/logo.svg
+logo_dark: ./assets/images/logo-dark.svg
+favicon: ./assets/images/favicon.png
+accent_color: "#2563eb"
+header_style: logo_and_text
+footer_text: "© 2026 Acme Corp. All rights reserved."
+footer_links:
+  - label: Privacy
+    url: /privacy
+  - label: Terms
+    url: /terms
+custom_css: ./assets/css/custom.css
+og_image: ./assets/images/og-default.png
+---
+```
+
+All fields optional. One Docker image serves unlimited branded deployments.
+
+---
+
+## Image Processing
+
+Images are automatically optimized on demand via query parameters:
+
+```
+/api/content/assets/images/photo.png              → Original
+/api/content/assets/images/photo.png?w=800&f=webp → 800px WebP
+/api/content/assets/images/photo.png?w=400&q=80   → 400px, quality 80
+```
+
+The Markdown pipeline automatically wraps content images in responsive `<picture>` elements with WebP srcset at 400/800/1200w and lazy loading. Processed variants are cached to disk. If sharp is unavailable, originals are served.
+
+Image paths in Markdown (`./assets/images/x.png`) preview correctly in GitHub and VS Code.
+
+---
+
+## AI-First Documentation
+
+f0 treats AI agents as first-class consumers.
+
+### `/llms.txt` — Full Context
+
+```
+GET /llms.txt                        → All documentation (~3ms cached)
+GET /llms.txt?section=guides         → Only /guides content
+GET /llms.txt?section=api            → Only /api content
+```
+
+Output is plain text with hierarchical path headers, stripped of all UI chrome. Pre-computed at startup and cached with content-hash invalidation.
+
+### `/llms-index.txt` — Discovery
+
+```
+# Acme Docs — Documentation Index
+
+## Available Sections
+
+/api          — 1 page, ~81 tokens
+/blog         — 3 pages, ~1,144 tokens
+/guides       — 4 pages, ~1,663 tokens
+
+## Full Site: 9 pages, ~3,225 tokens
+```
+
+Agents read the index first, then fetch only the sections they need.
+
+### `/api/agents/search` — Semantic Search
+
+```
+GET /api/agents/search?q=authentication&limit=5&include_content=true
+```
+
+---
+
+## SEO
+
+Auto-generated for every deployment:
+
+- **`/sitemap.xml`** — All pages with `lastmod`, `changefreq`, `priority`
+- **OpenGraph meta** — `og:title`, `og:description`, `og:image`, `og:url` on every page
+- **Twitter Cards** — `summary_large_image` when cover image present
+- **Canonical URLs** — `<link rel="canonical">` from `NUXT_PUBLIC_SITE_URL`
+- **`/feed.xml`** — RSS feed for blog content
+- **`Server-Timing`** header on every response
+
+---
+
+## Private Mode (Lite-Auth)
+
+Secure internal documentation with email OTP — no Identity Provider required.
 
 ```bash
-# Build the image
+AUTH_MODE=private
+```
+
+Add authorized emails to `/private/allowlist.json`:
+
+```json
+{
+  "emails": ["alice@company.com", "bob@company.com"],
+  "domains": ["company.com"]
+}
+```
+
+Configure AWS SES for email delivery. Flow: email challenge → 8-digit OTP → JWT token → access granted.
+
+---
+
+## Infrastructure
+
+### Health Probes
+
+```
+GET /_health    → Liveness (always 200 if process alive, includes cache stats)
+GET /_ready     → Readiness (validates content directory accessible)
+```
+
+Both bypass auth in private mode.
+
+### Startup Validation
+
+On boot, f0 validates the deployment environment before accepting traffic:
+
+1. Content directory exists (fatal if missing)
+2. `nav.md` present (warn if missing)
+3. Auth config valid (fatal if `AUTH_MODE=private` without allowlist)
+4. Pre-warm all content caches (every page parsed at startup)
+5. Pre-compute `/llms.txt` (ready for first AI request)
+
+### Performance
+
+- **Content cache** — mtime-based invalidation, ~1ms cached responses
+- **Navigation cache** — mtime + directory structure hash
+- **`/llms.txt` cache** — content-hash invalidation, ~3ms cached
+- **Image cache** — disk-based, mtime invalidation against source
+- **Structured JSON logs** — all server output, zero `console.log`
+
+### Content Validation CLI
+
+```bash
+npm run validate -- ./content
+```
+
+Checks: frontmatter YAML, image references, heading hierarchy, title resolution, nav.md links, duplicate slugs, file size, encoding. Exit 1 on errors for CI/CD gating.
+
+---
+
+## API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/content/[...slug]` | GET | Rendered page content |
+| `/api/navigation` | GET | Navigation structure |
+| `/api/brand` | GET | White-label configuration |
+| `/api/search?q=` | GET | Content search |
+| `/api/blog?path=` | GET | Blog post listings |
+| `/api/agents/search?q=` | GET | AI semantic search |
+| `/api/content/raw/[...slug]` | GET | Raw Markdown source |
+| `/api/content/assets/[...path]` | GET | Static assets (with image processing) |
+| `/llms.txt` | GET | AI-optimized content stream |
+| `/llms-index.txt` | GET | Section index with token estimates |
+| `/sitemap.xml` | GET | Auto-generated XML sitemap |
+| `/feed.xml` | GET | RSS feed |
+| `/_health` | GET | Liveness probe |
+| `/_ready` | GET | Readiness probe |
+| `/api/auth/request-otp` | POST | Request OTP (private mode) |
+| `/api/auth/verify-otp` | POST | Verify OTP (private mode) |
+| `/api/webhook` | POST | GitHub webhook for content sync |
+
+---
+
+## Deployment
+
+### Docker
+
+```bash
 docker build -t f0 .
 
-# Run the container
 docker run -p 3000:3000 \
   -v $(pwd)/content:/app/content \
   -e AUTH_MODE=public \
+  -e NUXT_PUBLIC_SITE_NAME="Acme Docs" \
+  -e NUXT_PUBLIC_SITE_URL="https://docs.acme.com" \
   f0
 ```
 
-### Docker Compose
+### Production Build
 
 ```bash
-docker-compose up -d
+npm run build
+node .output/server/index.mjs
 ```
 
 ### Environment Variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `AUTH_MODE` | `public` | `public` or `private` |
-| `JWT_SECRET` | (required in private mode) | Secret for signing tokens |
+| `NUXT_PUBLIC_SITE_NAME` | `f0` | Site name (header, OG, RSS) |
+| `NUXT_PUBLIC_SITE_DESCRIPTION` | `Documentation` | Default meta description |
+| `NUXT_PUBLIC_SITE_URL` | — | Base URL for sitemap, canonical links, OG |
 | `CONTENT_DIR` | `./content` | Path to content directory |
+| `AUTH_MODE` | `public` | `public` or `private` |
+| `JWT_SECRET` | — | Secret for signing tokens (required in private mode) |
 | `AWS_REGION` | `us-east-1` | AWS region for SES |
-| `AWS_ACCESS_KEY_ID` | - | AWS credentials |
-| `AWS_SECRET_ACCESS_KEY` | - | AWS credentials |
-| `EMAIL_FROM` | - | Sender email address |
-| `NUXT_PUBLIC_SITE_NAME` | `f0` | Site name in header |
-
-### Production Build
-
-```bash
-# Build for production
-npm run build
-
-# Preview production build
-npm run preview
-
-# Or start with Node
-node .output/server/index.mjs
-```
+| `AWS_ACCESS_KEY_ID` | — | AWS credentials for email |
+| `AWS_SECRET_ACCESS_KEY` | — | AWS credentials for email |
+| `EMAIL_FROM` | — | Sender email address |
+| `GITHUB_WEBHOOK_SECRET` | — | Secret for webhook signature verification |
 
 ---
 
-## 📡 API Endpoints
+## Theming
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/navigation` | GET | Returns navigation structure |
-| `/api/content/[...slug]` | GET | Returns rendered content |
-| `/llms.txt` | GET | AI-optimized content stream |
-| `/api/auth/request-otp` | POST | Request OTP (private mode) |
-| `/api/auth/verify-otp` | POST | Verify OTP (private mode) |
+f0 supports automatic dark/light mode with manual toggle.
 
----
+### Via `_brand.md` (Recommended)
 
-## 🎨 Theming
+Set `accent_color` in your `_brand.md` frontmatter. This overrides the CSS custom property site-wide. Add `custom_css` for full style control.
 
-f0 supports automatic dark/light mode based on system preference, with manual toggle.
+### Via CSS
 
-### Customization
-
-Edit `assets/css/main.css` to customize:
+Edit `assets/css/main.css` or provide a custom CSS file:
 
 ```css
 :root {
-  /* Light mode colors */
   --color-accent: #2563eb;
   --color-bg-primary: #ffffff;
   --color-text-primary: #1a1a1a;
 }
 
 [data-theme="dark"] {
-  /* Dark mode colors */
   --color-accent: #3b82f6;
   --color-bg-primary: #191919;
   --color-text-primary: #ececec;
@@ -301,78 +408,60 @@ Edit `assets/css/main.css` to customize:
 
 ---
 
-## 📜 Semantic Authority (Architecture Constraints)
+## Architecture Constraints
 
-This YAML block is the immutable constitution of the f0 project. It defines the constraints that prevent feature creep and ensure architectural integrity.
+f0 operates under 13 inviolable constraints that prevent feature creep and ensure architectural integrity:
 
-```yaml
-system: f0
-version: 1.0.0
-status: active
-mode: strict
-
-goal:
-  primary: >
-    Provide a low-friction documentation system where a single filesystem-based
-    source of truth renders consistently for humans, search engines, and AI agents.
-
-constraints:
-  - id: C-ARCH-FILESYSTEM-SOT-001
-    description: "The filesystem must remain the single source of truth."
-    enforcement: block
-    rationale: "Configuration-free operation depends on eliminating secondary databases."
-
-  - id: C-ARCH-NAV-CANONICAL-002
-    description: "Navigation structure must be derived exclusively from nav.md and file hierarchy."
-    enforcement: block
-    rationale: "Predictable navigation is required for humans and LLMs to share the same mental model."
-
-  - id: C-AI-TRIBRID-CONSISTENCY-003
-    description: "UI, SEO, and LLM renderings must originate from the same source files."
-    enforcement: block
-    rationale: "Divergent render paths create contradictory meaning for humans vs agents."
-
-  - id: C-AI-LLMS-NO-UI-NOISE-004
-    description: "The /llms.txt output must exclude all UI, styling, and navigation chrome."
-    enforcement: block
-    rationale: "LLM ingestion must be context-dense and free of presentation artifacts."
-
-  - id: C-SEC-PRIVATE-NOT-PUBLIC-005
-    description: "Files under /private must never be directly accessible via public URLs."
-    enforcement: block
-    rationale: "Internal configuration constitutes sensitive access-control data."
-
-  - id: C-SEC-OTP-ALLOWLIST-ONLY-006
-    description: "Authentication must only succeed for emails present in allowlist.json."
-    enforcement: block
-    rationale: "Private mode relies on explicit access approval, not open registration."
-
-  - id: C-OPS-ZERO-CONFIG-DEFAULT-008
-    description: "f0 must function without any required configuration beyond directory presence."
-    enforcement: block
-    rationale: "Adoption depends on minimizing setup friction."
-```
+| ID | Constraint |
+|----|-----------|
+| C-ARCH-FILESYSTEM-SOT-001 | The filesystem must remain the single source of truth |
+| C-ARCH-NAV-CANONICAL-002 | Navigation derived exclusively from nav.md and file hierarchy |
+| C-AI-TRIBRID-CONSISTENCY-003 | UI, SEO, and LLM renderings from the same source files |
+| C-AI-LLMS-NO-UI-NOISE-004 | `/llms.txt` excludes all UI chrome |
+| C-SEC-PRIVATE-NOT-PUBLIC-005 | `/private` never accessible via public URLs |
+| C-SEC-OTP-ALLOWLIST-ONLY-006 | Auth only succeeds for allowlisted emails |
+| C-OPS-ZERO-CONFIG-DEFAULT-008 | Functions without configuration beyond directory presence |
+| C-PERF-CACHE-MTIME-010 | Cache invalidation uses mtime, never TTL |
+| C-BRAND-CONTENT-ONLY-011 | All branding expressible through content files and env vars |
+| C-MEDIA-PROGRESSIVE-012 | Image processing fails gracefully to originals |
+| C-OPS-FAIL-FAST-013 | Fatal misconfigurations detected at startup |
 
 ---
 
-## 🗺️ Roadmap
+## Roadmap
 
 - [x] Filesystem-based content management
 - [x] Tri-brid rendering (UI/SEO/LLM)
 - [x] Dark/light theme toggle
 - [x] OpenAPI/Swagger rendering
 - [x] Private mode with OTP auth
-- [ ] Full-text search
+- [x] Content caching with mtime invalidation
+- [x] Health and readiness probes
+- [x] Error resilience (per-file error boundaries)
+- [x] `/llms.txt` pre-computation and section filtering
+- [x] Navigation cache (mtime-based)
+- [x] White-label branding (`_brand.md`)
+- [x] Image processing pipeline (sharp, responsive images)
+- [x] Structured JSON logging
+- [x] Auto-generated sitemap.xml
+- [x] OpenGraph and Twitter Card meta
+- [x] Request timing (Server-Timing headers)
+- [x] Startup validation and cache pre-warming
+- [x] Embed system (Loom, Figma, Gist, Mermaid)
+- [x] Asset validation
+- [x] Content validation CLI
+- [x] Blog engine with RSS feed
+- [x] Webhook for CI/CD content sync
+- [ ] Full-text search (Meilisearch integration)
 - [ ] Versioned documentation
 - [ ] Multi-language support
-- [ ] Webhook for CI/CD content sync
 
 ---
 
-## 📄 License
+## License
 
 MIT
 
 ---
 
-Built with [Nuxt 3](https://nuxt.com) and [Pico.css](https://picocss.com).
+Built with [Nuxt 3](https://nuxt.com).
