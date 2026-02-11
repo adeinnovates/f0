@@ -1,5 +1,6 @@
 /**
  * =============================================================================
+import { logger } from '../../utils/logger'
  * F0 - ADMIN FILE UPLOAD API
  * =============================================================================
  * 
@@ -32,6 +33,8 @@ import { join, dirname, extname, normalize } from 'path'
 import { invalidateNavigationCache } from '../../utils/navigation'
 import { invalidateContentCache } from '../../utils/cache'
 import { invalidateConfigCache } from '../../utils/config'
+import { invalidateLlmsCache } from '../../utils/llms-cache'
+import { invalidateBrandCache } from '../../utils/brand'
 
 // =============================================================================
 // CONFIGURATION
@@ -213,8 +216,10 @@ export default defineEventHandler(async (event) => {
     invalidateNavigationCache()
     invalidateContentCache()
     invalidateConfigCache()
+    invalidateLlmsCache()
+    invalidateBrandCache()
     
-    console.log(`[Upload] File saved: ${cleanPath} by ${event.context.auth?.email || 'anonymous'}`)
+    logger.info('File uploaded', { path: cleanPath, email: event.context.auth?.email || 'anonymous' })
     
     return {
       success: true,
@@ -224,7 +229,7 @@ export default defineEventHandler(async (event) => {
     }
     
   } catch (error) {
-    console.error(`[Upload] Failed to save file ${cleanPath}:`, error)
+    logger.error('Failed to save uploaded file', { path: cleanPath, error: error instanceof Error ? error.message : String(error) })
     
     throw createError({
       statusCode: 500,

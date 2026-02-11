@@ -1,5 +1,6 @@
 /**
  * =============================================================================
+import { logger } from '../../utils/logger'
  * F0 - BLOG INDEX API
  * =============================================================================
  * 
@@ -151,7 +152,7 @@ async function scanBlogPosts(
       })
     }
   } catch (error) {
-    console.error(`[Blog] Error scanning directory ${fullPath}:`, error)
+    logger.warn('Error scanning blog directory', { path: fullPath })
   }
 
   // Sort: pinned first (by date desc), then all others by date desc

@@ -1,4 +1,5 @@
 /**
+import { logger } from './logger'
  * =============================================================================
  * F0 - ALLOWLIST CHECKER
  * =============================================================================
@@ -56,7 +57,7 @@ let cacheModTime: number = 0
 export function invalidateAllowlistCache(): void {
   allowlistCache = null
   cacheModTime = 0
-  console.log('[Allowlist] Cache invalidated')
+  logger.info('Allowlist cache invalidated')
 }
 
 // =============================================================================
@@ -105,7 +106,7 @@ async function loadAllowlist(privateDir: string): Promise<AllowlistConfig> {
     allowlistCache = config
     cacheModTime = modTime
     
-    console.log('[Allowlist] Loaded:', {
+    logger.info('Allowlist loaded', {
       emails: config.emails?.length || 0,
       domains: config.domains?.length || 0,
     })
@@ -114,11 +115,11 @@ async function loadAllowlist(privateDir: string): Promise<AllowlistConfig> {
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
       // File doesn't exist - return empty allowlist
-      console.warn('[Allowlist] allowlist.json not found, no users can authenticate')
+      logger.warn('allowlist.json not found, no users can authenticate')
       return { emails: [], domains: [] }
     }
     
-    console.error('[Allowlist] Error loading allowlist:', error)
+    logger.error('Error loading allowlist', { error: error instanceof Error ? error.message : String(error) })
     throw error
   }
 }
@@ -164,7 +165,7 @@ export async function isEmailAllowed(
     
     return false
   } catch (error) {
-    console.error('[Allowlist] Error checking email:', error)
+    logger.error('Error checking email allowlist', { error: error instanceof Error ? error.message : String(error) })
     // Fail closed - if we can't verify, deny access
     return false
   }

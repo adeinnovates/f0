@@ -25,6 +25,7 @@
     "remark-gfm": "^4.0.0",
     "remark-parse": "^11.0.0",
     "remark-rehype": "^11.1.0",
+    "sharp": "^0.34.5",
     "unified": "^11.0.4",
     "unist-util-visit": "^5.0.0",
     "yaml": "^2.4.1"

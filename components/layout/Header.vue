@@ -16,9 +16,18 @@ USAGE:
 
 <template>
   <header class="header">
-    <!-- Logo -->
+    <!-- Logo / Brand -->
     <NuxtLink to="/" class="header-logo">
-      {{ siteName }}
+      <template v-if="brand?.headerStyle !== 'text_only' && brand?.logo">
+        <img 
+          :src="currentLogo" 
+          :alt="siteName" 
+          class="header-logo-img"
+        />
+      </template>
+      <span v-if="brand?.headerStyle !== 'logo_only' || !brand?.logo">
+        {{ siteName }}
+      </span>
     </NuxtLink>
     
     <!-- Top Navigation -->
@@ -87,6 +96,19 @@ const siteName = config.public.siteName || 'f0'
 const { topNav, isActive } = useNavigation()
 const { isAuthenticated, logout } = useAuth()
 const { openSearch } = useSearch()
+const { theme } = useTheme()
+
+// Fetch brand configuration
+const { data: brand } = await useFetch('/api/brand', { key: 'brand' })
+
+// Computed logo based on current theme
+const currentLogo = computed(() => {
+  if (!brand.value) return ''
+  if (theme.value === 'dark' && brand.value.logoDark) {
+    return brand.value.logoDark
+  }
+  return brand.value.logo || ''
+})
 
 // Emit event for mobile menu toggle
 defineEmits(['toggle-sidebar'])
@@ -118,10 +140,19 @@ function handleLogout() {
   color: var(--color-text-primary);
   text-decoration: none;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
 }
 
 .header-logo:hover {
   text-decoration: none;
+}
+
+.header-logo-img {
+  height: 28px;
+  width: auto;
+  object-fit: contain;
 }
 
 .header-nav {

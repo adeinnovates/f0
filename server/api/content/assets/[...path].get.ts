@@ -6,10 +6,17 @@
  * GET /api/content/assets/[...path]
  * 
  * Serves static assets (images, files) from the content/assets directory.
+ * Supports on-demand image processing via query parameters.
  * 
- * EXAMPLES:
- * - GET /api/content/assets/images/diagram.png
- * - GET /api/content/assets/files/example.pdf
+ * IMAGE PROCESSING (Phase 2.1):
+ *   ?w=800       → Resize to 800px width
+ *   ?h=600       → Resize to 600px height
+ *   ?f=webp      → Convert to WebP format
+ *   ?q=80        → Quality 80 (1-100)
+ *   Combined:    ?w=800&f=webp&q=80
+ * 
+ * No params → serve original (backward compatible).
+ * Processing fails → serve original (C-MEDIA-PROGRESSIVE-012).
  * 
  * SECURITY:
  * - Only serves files from content/assets directory
@@ -20,6 +27,8 @@
 import { readFile, stat } from 'fs/promises'
 import { resolve, join, extname, normalize } from 'path'
 import { lookup } from 'mrmime'
+import { isProcessableImage, parseImageOptions, getProcessedImage } from '../../../utils/image-processor'
+import { logger } from '../../../utils/logger'
 
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig()
@@ -57,7 +66,29 @@ export default defineEventHandler(async (event) => {
       })
     }
     
-    // Read the file
+    // Check for image processing parameters
+    const query = getQuery(event)
+    const imageOptions = parseImageOptions(query)
+    
+    if (imageOptions && isProcessableImage(filePath)) {
+      // Attempt image processing
+      const cacheDir = join(contentDir, '.cache', 'images')
+      const processed = await getProcessedImage(filePath, cacheDir, imageOptions)
+      
+      if (processed) {
+        setHeader(event, 'Content-Type', processed.mimeType)
+        setHeader(event, 'Content-Length', processed.buffer.length)
+        setHeader(event, 'Cache-Control', 'public, max-age=604800') // 7 days for processed
+        setHeader(event, 'X-Image-Processed', 'true')
+        return processed.buffer
+      }
+      
+      // Fall through to serve original if processing failed
+      // (C-MEDIA-PROGRESSIVE-012: never block on optimization)
+      logger.debug('Image processing failed, serving original', { path: assetPath })
+    }
+    
+    // Serve original file
     const content = await readFile(filePath)
     
     // Determine MIME type
@@ -67,7 +98,7 @@ export default defineEventHandler(async (event) => {
     // Set headers
     setHeader(event, 'Content-Type', mimeType)
     setHeader(event, 'Content-Length', content.length)
-    setHeader(event, 'Cache-Control', 'public, max-age=86400') // 24 hour cache
+    setHeader(event, 'Cache-Control', 'public, max-age=86400') // 24 hours for originals
     
     return content
   } catch (error) {
@@ -77,6 +108,11 @@ export default defineEventHandler(async (event) => {
         statusMessage: 'Not Found',
         data: { message: `Asset not found: ${assetPath}` },
       })
+    }
+    
+    // Re-throw HTTP errors
+    if (error && typeof error === 'object' && 'statusCode' in error) {
+      throw error
     }
     
     throw createError({

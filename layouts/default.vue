@@ -50,6 +50,22 @@
       @click="sidebarOpen = false"
     />
     
+    <!-- Footer (from _brand.md) -->
+    <footer v-if="brand?.footerText || (brand?.footerLinks && brand.footerLinks.length > 0)" class="site-footer">
+      <div class="footer-content">
+        <span v-if="brand.footerText" class="footer-text">{{ brand.footerText }}</span>
+        <nav v-if="brand.footerLinks && brand.footerLinks.length > 0" class="footer-links">
+          <NuxtLink
+            v-for="link in brand.footerLinks"
+            :key="link.url"
+            :to="link.url"
+          >
+            {{ link.label }}
+          </NuxtLink>
+        </nav>
+      </div>
+    </footer>
+    
     <!-- Search Modal (Command Palette) -->
     <LayoutSearchModal />
   </div>
@@ -61,6 +77,40 @@
 // ---------------------------------------------------------------------------
 
 const sidebarOpen = ref(false)
+
+// ---------------------------------------------------------------------------
+// BRAND CONFIG
+// ---------------------------------------------------------------------------
+
+const { data: brand } = await useFetch('/api/brand', { key: 'brand' })
+
+// Inject accent color, favicon, and custom CSS into head
+useHead(computed(() => {
+  const head: Record<string, unknown> = { link: [] as Record<string, string>[], style: [] as Record<string, string>[] }
+  
+  if (brand.value?.favicon) {
+    (head.link as Record<string, string>[]).push({
+      rel: 'icon',
+      type: 'image/png',
+      href: brand.value.favicon,
+    })
+  }
+  
+  if (brand.value?.customCss) {
+    (head.link as Record<string, string>[]).push({
+      rel: 'stylesheet',
+      href: brand.value.customCss,
+    })
+  }
+  
+  if (brand.value?.accentColor) {
+    (head.style as Record<string, string>[]).push({
+      innerHTML: `:root { --color-accent: ${brand.value.accentColor}; --color-accent-light: ${brand.value.accentColor}20; }`,
+    })
+  }
+  
+  return head
+}))
 
 // ---------------------------------------------------------------------------
 // THEME
@@ -128,6 +178,58 @@ onMounted(() => {
 @media (max-width: 768px) {
   .sidebar-overlay {
     display: block;
+  }
+}
+
+/* Footer */
+.site-footer {
+  grid-column: 2;
+  border-top: 1px solid var(--color-border-primary);
+  padding: var(--spacing-6) var(--spacing-8);
+  margin-top: var(--spacing-12);
+}
+
+.footer-content {
+  max-width: var(--content-max-width);
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-4);
+  flex-wrap: wrap;
+}
+
+.footer-text {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.footer-links {
+  display: flex;
+  gap: var(--spacing-4);
+}
+
+.footer-links a {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+
+.footer-links a:hover {
+  color: var(--color-accent);
+  text-decoration: none;
+}
+
+@media (max-width: 768px) {
+  .site-footer {
+    grid-column: 1;
+    padding: var(--spacing-4);
+  }
+  
+  .footer-content {
+    flex-direction: column;
+    text-align: center;
   }
 }
 </style>

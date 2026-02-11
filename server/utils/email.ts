@@ -1,4 +1,5 @@
 /**
+import { logger } from './logger'
  * =============================================================================
  * F0 - EMAIL UTILITY (AWS SES)
  * =============================================================================
@@ -219,9 +220,9 @@ export async function sendOtpEmail(to: string, otp: string): Promise<void> {
   
   try {
     const response = await client.send(command)
-    console.log(`[Email] OTP sent to ${to}, MessageId: ${response.MessageId}`)
+    logger.info('OTP email sent', { to, messageId: response.MessageId })
   } catch (error) {
-    console.error(`[Email] Failed to send OTP to ${to}:`, error)
+    logger.error('Failed to send OTP email', { to, error: error instanceof Error ? error.message : String(error) })
     throw error
   }
 }

@@ -1,5 +1,6 @@
 /**
  * =============================================================================
+import { logger } from '../utils/logger'
  * F0 - AUTHENTICATION MIDDLEWARE
  * =============================================================================
  * 
@@ -68,7 +69,7 @@ export default defineEventHandler(async (event) => {
   // ---------------------------------------------------------------------------
   for (const blocked of BLOCKED_ROUTES) {
     if (path.startsWith(blocked) || path.includes('/../')) {
-      console.warn(`[Auth] Blocked access attempt: ${path} from IP: ${getClientIp(event)}`)
+      logger.warn('Blocked access attempt', { path, ip: getClientIp(event) })
       throw createError({
         statusCode: 403,
         statusMessage: 'Forbidden',

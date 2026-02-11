@@ -1,4 +1,5 @@
 /**
+import { logger } from './logger'
  * =============================================================================
  * F0 - JWT (JSON WEB TOKEN) UTILITY
  * =============================================================================
@@ -71,7 +72,7 @@ function getJwtSecret(): string {
     if (process.env.NODE_ENV === 'production') {
       throw new Error('JWT_SECRET not configured for production')
     }
-    console.warn('[JWT] Using default secret - NOT SAFE FOR PRODUCTION')
+    logger.warn('Using default JWT secret - NOT SAFE FOR PRODUCTION')
   }
   
   return secret
@@ -99,7 +100,7 @@ export function createToken(email: string): string {
     algorithm: 'HS256',
   })
   
-  console.log(`[JWT] Token created for ${email}`)
+  logger.info('JWT token created', { email })
   
   return token
 }
@@ -125,16 +126,16 @@ export function verifyToken(token: string): JwtVerifyResult {
     return { valid: true, payload }
   } catch (error) {
     if (error instanceof jwt.TokenExpiredError) {
-      console.log('[JWT] Token expired')
+      logger.debug('JWT token expired')
       return { valid: false, error: 'expired' }
     }
     
     if (error instanceof jwt.JsonWebTokenError) {
-      console.log('[JWT] Invalid token:', error.message)
+      logger.debug('Invalid JWT token', { error: error.message })
       return { valid: false, error: 'invalid' }
     }
     
-    console.error('[JWT] Verification error:', error)
+    logger.error('JWT verification error', { error: error instanceof Error ? error.message : String(error) })
     return { valid: false, error: 'invalid' }
   }
 }

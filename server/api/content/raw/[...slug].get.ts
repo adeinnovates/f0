@@ -1,5 +1,6 @@
 /**
  * =============================================================================
+import { logger } from '../../../utils/logger'
  * F0 - RAW MARKDOWN API ENDPOINT
  * =============================================================================
  * 
@@ -95,7 +96,7 @@ export default defineEventHandler(async (event) => {
       throw error
     }
     
-    console.error(`[RawContent] Error loading ${contentSlug}:`, error)
+    logger.error('Error loading raw content', { slug: contentSlug })
     
     throw createError({
       statusCode: 500,

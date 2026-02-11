@@ -1,5 +1,6 @@
 /**
  * =============================================================================
+import { logger } from '../utils/logger'
  * F0 - RSS/ATOM FEED ROUTE
  * =============================================================================
  * 
@@ -118,7 +119,7 @@ export default defineEventHandler(async (event) => {
       })
     }
   } catch (error) {
-    console.error('[Feed] Error scanning for posts:', error)
+    logger.error('Error scanning for RSS feed posts', { error: error instanceof Error ? error.message : String(error) })
   }
 
   // Sort by date descending

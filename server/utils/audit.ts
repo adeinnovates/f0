@@ -1,4 +1,5 @@
 /**
+import { logger } from './logger'
  * =============================================================================
  * F0 - AUDIT LOGGING
  * =============================================================================
@@ -227,7 +228,7 @@ async function writeToFile(entry: AuditLogEntry): Promise<void> {
     const line = JSON.stringify(entry) + '\n'
     await appendFile(config.logFilePath, line, 'utf-8')
   } catch (error) {
-    console.error('[Audit] Failed to write to log file:', error)
+    logger.error('Failed to write audit log', { error: error instanceof Error ? error.message : String(error) })
   }
 }
 
@@ -270,9 +271,9 @@ export async function auditLog(
   // Store in memory buffer
   auditBuffer.push(entry)
   
-  // Console logging
+  // Console logging via structured logger
   if (config.consoleLogging) {
-    console.log(formatConsoleLog(entry))
+    logger.info('Audit event', { event: entry.event, email: entry.emailMasked, success: entry.success, reason: entry.reason })
   }
   
   // File logging (async, non-blocking)
@@ -309,7 +310,7 @@ export async function auditLogSystem(
   auditBuffer.push(entry)
   
   if (config.consoleLogging) {
-    console.log(formatConsoleLog(entry))
+    logger.info('Audit event (system)', { event: entry.event, email: entry.emailMasked, success: entry.success, reason: entry.reason })
   }
   
   writeToFile(entry).catch(() => {})

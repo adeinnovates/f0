@@ -1,5 +1,6 @@
 /**
  * =============================================================================
+import { logger } from '../utils/logger'
  * F0 - NAVIGATION API ENDPOINT
  * =============================================================================
  * 
@@ -61,7 +62,7 @@ export default defineEventHandler(async (event) => {
       sidebar: sidebarData,
     }
   } catch (error) {
-    console.error('[Navigation] Error building navigation:', error)
+    logger.error('Error building navigation', { error: error instanceof Error ? error.message : String(error) })
     
     throw createError({
       statusCode: 500,

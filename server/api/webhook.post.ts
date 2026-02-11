@@ -28,6 +28,9 @@ import { createHmac, timingSafeEqual } from 'crypto'
 import { invalidateNavigationCache } from '../utils/navigation'
 import { invalidateContentCache } from '../utils/cache'
 import { invalidateConfigCache } from '../utils/config'
+import { invalidateLlmsCache } from '../utils/llms-cache'
+import { invalidateBrandCache } from '../utils/brand'
+import { logger } from '../utils/logger'
 
 // =============================================================================
 // SIGNATURE VERIFICATION
@@ -83,7 +86,7 @@ export default defineEventHandler(async (event) => {
   const githubEvent = getHeader(event, 'x-github-event')
   const deliveryId = getHeader(event, 'x-github-delivery')
   
-  console.log(`[Webhook] Received: event=${githubEvent}, delivery=${deliveryId}`)
+  logger.info('Webhook received', { event: githubEvent, delivery: deliveryId })
   
   // Get raw body for signature verification
   const rawBody = await readRawBody(event)
@@ -91,7 +94,7 @@ export default defineEventHandler(async (event) => {
   // Verify signature if secret is configured
   if (webhookSecret) {
     if (!verifySignature(rawBody || '', signature, webhookSecret)) {
-      console.warn(`[Webhook] Invalid signature for delivery ${deliveryId}`)
+      logger.warn('Invalid webhook signature', { delivery: deliveryId })
       throw createError({
         statusCode: 401,
         statusMessage: 'Unauthorized',
@@ -99,7 +102,7 @@ export default defineEventHandler(async (event) => {
       })
     }
   } else {
-    console.warn('[Webhook] No webhook secret configured - skipping signature verification')
+    logger.warn('No webhook secret configured')
   }
   
   // Parse body
@@ -109,7 +112,7 @@ export default defineEventHandler(async (event) => {
   switch (githubEvent) {
     case 'push':
       // Push event - content may have changed
-      console.log(`[Webhook] Push to ${body.ref} by ${body.pusher?.name}`)
+      logger.info('Webhook push event', { ref: body.ref, pusher: body.pusher?.name })
       
       // Only process pushes to main/master branch
       const branch = body.ref?.replace('refs/heads/', '')
@@ -118,8 +121,10 @@ export default defineEventHandler(async (event) => {
         invalidateNavigationCache()
         invalidateContentCache()
         invalidateConfigCache()
+        invalidateLlmsCache()
+        invalidateBrandCache()
         
-        console.log('[Webhook] All caches invalidated')
+        logger.info('All caches invalidated via webhook')
         
         // Note: In a full implementation, you might:
         // 1. Run `git pull` to update content
@@ -142,7 +147,7 @@ export default defineEventHandler(async (event) => {
     
     case 'ping':
       // GitHub sends ping when webhook is first set up
-      console.log(`[Webhook] Ping received - webhook configured correctly`)
+      logger.info('Webhook ping received')
       return {
         success: true,
         message: 'Pong! Webhook configured successfully.',
@@ -150,7 +155,7 @@ export default defineEventHandler(async (event) => {
     
     default:
       // Ignore other events
-      console.log(`[Webhook] Ignoring event type: ${githubEvent}`)
+      logger.debug('Webhook event ignored', { event: githubEvent })
       return {
         success: true,
         message: `Event type '${githubEvent}' ignored`,

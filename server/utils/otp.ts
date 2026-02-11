@@ -1,4 +1,5 @@
 /**
+import { logger } from './logger'
  * =============================================================================
  * F0 - OTP (ONE-TIME PASSWORD) MANAGER
  * =============================================================================
@@ -115,7 +116,7 @@ export async function generateOtp(email: string): Promise<OtpGenerateResult> {
   // Check rate limit
   const rateLimit = await checkRequestRateLimit(normalizedEmail)
   if (rateLimit.limited) {
-    console.log(`[OTP] Rate limited for ${normalizedEmail}`)
+    logger.warn('OTP rate limited', { email: normalizedEmail })
     return {
       success: false,
       error: 'rate_limited',
@@ -147,11 +148,11 @@ export async function generateOtp(email: string): Promise<OtpGenerateResult> {
       OTP_CONFIG.RATE_LIMIT_WINDOW_SECONDS
     )
     
-    console.log(`[OTP] Generated for ${normalizedEmail}: ${code}`)
+    logger.info('OTP generated', { email: normalizedEmail })
     
     return { success: true }
   } catch (error) {
-    console.error('[OTP] Error generating OTP:', error)
+    logger.error('Error generating OTP', { error: error instanceof Error ? error.message : String(error) })
     return { success: false, error: 'internal_error' }
   }
 }
@@ -213,13 +214,13 @@ export async function verifyOtp(email: string, code: string): Promise<OtpVerifyR
   const otpData = await storage.get<StoredOtp>(key)
   
   if (!otpData) {
-    console.log(`[OTP] No OTP found for ${normalizedEmail}`)
+    logger.debug('No OTP found', { email: normalizedEmail })
     return { success: false, error: 'not_found' }
   }
   
   // Check if max attempts exceeded
   if (otpData.attempts >= OTP_CONFIG.MAX_VERIFY_ATTEMPTS) {
-    console.log(`[OTP] Max attempts exceeded for ${normalizedEmail}`)
+    logger.warn('OTP max attempts exceeded', { email: normalizedEmail })
     // Delete the OTP to force requesting a new one
     await storage.delete(key)
     return { success: false, error: 'max_attempts', attemptsRemaining: 0 }
@@ -228,7 +229,7 @@ export async function verifyOtp(email: string, code: string): Promise<OtpVerifyR
   // Check if expired (belt and suspenders - storage TTL should handle this)
   const age = Date.now() - otpData.createdAt
   if (age > OTP_CONFIG.TTL_SECONDS * 1000) {
-    console.log(`[OTP] Expired for ${normalizedEmail}`)
+    logger.debug('OTP expired', { email: normalizedEmail })
     await storage.delete(key)
     return { success: false, error: 'expired' }
   }
@@ -237,7 +238,7 @@ export async function verifyOtp(email: string, code: string): Promise<OtpVerifyR
   const isValid = safeCompare(normalizedCode, otpData.code)
   
   if (isValid) {
-    console.log(`[OTP] Verified successfully for ${normalizedEmail}`)
+    logger.info('OTP verified', { email: normalizedEmail })
     // Delete OTP after successful verification (one-time use)
     await storage.delete(key)
     return { success: true }
@@ -247,7 +248,7 @@ export async function verifyOtp(email: string, code: string): Promise<OtpVerifyR
   otpData.attempts += 1
   const attemptsRemaining = OTP_CONFIG.MAX_VERIFY_ATTEMPTS - otpData.attempts
   
-  console.log(`[OTP] Invalid code for ${normalizedEmail}, attempts: ${otpData.attempts}/${OTP_CONFIG.MAX_VERIFY_ATTEMPTS}`)
+  logger.warn('Invalid OTP code', { email: normalizedEmail, attempts: otpData.attempts, maxAttempts: OTP_CONFIG.MAX_VERIFY_ATTEMPTS })
   
   // Update stored OTP with new attempt count
   // Preserve remaining TTL (approximately)
@@ -275,7 +276,7 @@ export async function verifyOtp(email: string, code: string): Promise<OtpVerifyR
 export async function clearOtp(email: string): Promise<void> {
   const normalizedEmail = email.toLowerCase().trim()
   await storage.delete(otpKey(normalizedEmail))
-  console.log(`[OTP] Cleared for ${normalizedEmail}`)
+  logger.debug('OTP cleared', { email: normalizedEmail })
 }
 
 /**

@@ -38,6 +38,7 @@
 import { readdir, readFile, stat } from 'fs/promises'
 import { join, basename, extname, relative } from 'path'
 import { parseMarkdown, isMarkdownFile, isJsonSpecFile } from './markdown'
+import { logger } from './logger'
 import yaml from 'yaml'
 
 // =============================================================================
@@ -87,40 +88,82 @@ export interface ContentMeta {
 }
 
 // =============================================================================
-// NAVIGATION CACHE
+// MTIME-BASED NAVIGATION CACHE (Phase 1.3)
 // =============================================================================
 
 /**
- * Cache for navigation data
- * Invalidate by calling invalidateNavigationCache()
+ * Cache for navigation data.
+ * Invalidation uses nav.md mtime + directory structure hash.
+ * No TTL — content changes when files change, period.
  */
 let navigationCache: Navigation | null = null
 let contentMetaCache: Map<string, ContentMeta> = new Map()
-let cacheTimestamp: number = 0
-const CACHE_TTL = 5000 // 5 seconds TTL in dev mode
+let cachedNavMtime: number = 0          // mtime of nav.md
+let cachedDirStructureHash: string = '' // Hash of directory listing
 
 /**
- * Invalidate the navigation cache
- * Call this after content changes (webhook, upload)
+ * Compute a lightweight hash of the directory structure.
+ * Only checks directory names + file names + mtimes at top 2 levels.
+ * This is much cheaper than a full recursive scan.
+ */
+async function computeDirStructureHash(contentDir: string): Promise<string> {
+  const parts: string[] = []
+  try {
+    const entries = await readdir(contentDir, { withFileTypes: true })
+    for (const entry of entries) {
+      if (entry.name.startsWith('.') || entry.name.startsWith('_')) continue
+      if (entry.name === 'assets' || entry.name === 'images') continue
+      const entryPath = join(contentDir, entry.name)
+      try {
+        const s = await stat(entryPath)
+        parts.push(`${entry.name}:${s.mtimeMs}:${entry.isDirectory() ? 'd' : 'f'}`)
+        // One level deeper for directories
+        if (entry.isDirectory()) {
+          const subEntries = await readdir(entryPath, { withFileTypes: true })
+          for (const sub of subEntries) {
+            if (sub.name.startsWith('.') || sub.name.startsWith('_')) continue
+            try {
+              const ss = await stat(join(entryPath, sub.name))
+              parts.push(`${entry.name}/${sub.name}:${ss.mtimeMs}`)
+            } catch {}
+          }
+        }
+      } catch {}
+    }
+  } catch {}
+  return parts.sort().join('|')
+}
+
+/**
+ * Check if navigation cache is still valid using mtime comparison.
+ */
+async function isNavCacheValid(contentDir: string): Promise<boolean> {
+  if (!navigationCache) return false
+
+  // Check nav.md mtime
+  try {
+    const navStats = await stat(join(contentDir, 'nav.md'))
+    if (navStats.mtimeMs !== cachedNavMtime) return false
+  } catch {
+    // nav.md doesn't exist — if we cached with mtime 0, still valid
+    if (cachedNavMtime !== 0) return false
+  }
+
+  // Check directory structure hash
+  const currentHash = await computeDirStructureHash(contentDir)
+  return currentHash === cachedDirStructureHash
+}
+
+/**
+ * Invalidate the navigation cache.
+ * Call this after content changes (webhook, upload).
  */
 export function invalidateNavigationCache(): void {
   navigationCache = null
   contentMetaCache.clear()
-  cacheTimestamp = 0
-  console.log('[Navigation] Cache invalidated')
-}
-
-/**
- * Check if cache is still valid
- */
-function isCacheValid(): boolean {
-  if (!navigationCache) return false
-  
-  // In production, cache forever
-  if (process.env.NODE_ENV === 'production') return true
-  
-  // In dev, expire after TTL
-  return (Date.now() - cacheTimestamp) < CACHE_TTL
+  cachedNavMtime = 0
+  cachedDirStructureHash = ''
+  logger.info('Navigation cache invalidated')
 }
 
 // =============================================================================
@@ -164,7 +207,7 @@ async function parseNavMd(contentDir: string): Promise<TopNavItem[]> {
   } catch (error) {
     // If nav.md doesn't exist, return empty array
     // The system will still work with auto-generated navigation
-    console.warn('[Navigation] nav.md not found, using filesystem-only navigation')
+    logger.warn('nav.md not found, using filesystem-only navigation')
     return []
   }
 }
@@ -350,11 +393,11 @@ async function scanDirectory(
         })
       } else if (isJsonSpecFile(entry.name)) {
         // Parse JSON spec for metadata
-        console.log(`[Navigation] Found JSON spec: ${entry.name} at ${entryPath}`)
+        logger.debug('Found JSON spec', { name: entry.name, path: entryPath })
         const { title } = await getTitleFromJsonSpec(entryPath)
         const filenameOrder = extractOrderFromFilename(entry.name)
         
-        console.log(`[Navigation] JSON spec title: "${title}", path: "${urlPath}"`)
+        logger.debug('JSON spec metadata', { title, urlPath })
         
         items.push({
           title,
@@ -373,7 +416,7 @@ async function scanDirectory(
     
     return items
   } catch (error) {
-    console.error(`[Navigation] Error scanning directory ${dirPath}:`, error)
+    logger.error('Error scanning directory', { path: dirPath, error: error instanceof Error ? error.message : String(error) })
     return []
   }
 }
@@ -389,12 +432,12 @@ async function scanDirectory(
  * @returns Navigation object with topNav and sidebar
  */
 export async function buildNavigation(contentDir: string): Promise<Navigation> {
-  // Return cached if available and valid
-  if (isCacheValid()) {
+  // Return cached if available and valid (mtime-based)
+  if (await isNavCacheValid(contentDir)) {
     return navigationCache!
   }
   
-  console.log('[Navigation] Building navigation from', contentDir)
+  logger.info('Building navigation', { contentDir })
   
   // Parse top-level navigation from nav.md
   const topNav = await parseNavMd(contentDir)
@@ -429,9 +472,17 @@ export async function buildNavigation(contentDir: string): Promise<Navigation> {
     }
   }
   
-  // Cache the result
+  // Cache the result with mtime data
   navigationCache = { topNav, sidebar }
-  cacheTimestamp = Date.now()
+  
+  // Store nav.md mtime for cache invalidation
+  try {
+    const navStats = await stat(join(contentDir, 'nav.md'))
+    cachedNavMtime = navStats.mtimeMs
+  } catch {
+    cachedNavMtime = 0
+  }
+  cachedDirStructureHash = await computeDirStructureHash(contentDir)
   
   return navigationCache
 }

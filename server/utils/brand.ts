@@ -1,0 +1,173 @@
+/**
+ * =============================================================================
+ * F0 - BRAND CONFIGURATION
+ * =============================================================================
+ * 
+ * Reads `_brand.md` from the content root for white-label configuration.
+ * All fields are optional. Defaults produce a clean, unbranded f0 instance.
+ * 
+ * CONSTRAINT COMPLIANCE:
+ * - C-BRAND-CONTENT-ONLY-011: All branding is expressible through content
+ *   directory files and environment variables. No code changes for white-labeling.
+ * - C-ARCH-FILESYSTEM-SOT-001: Brand config lives in the content filesystem.
+ * - C-OPS-ZERO-CONFIG-DEFAULT-008: Missing _brand.md produces a working site.
+ * 
+ * DESIGN:
+ * - `_brand.md` follows the same convention as `_config.md` — frontmatter-only.
+ * - Brand config is per-deployment, not per-environment. A studio might run
+ *   the same Docker image for 10 clients, each with a different content volume.
+ * - Cached using mtime comparison, same pattern as content cache.
+ */
+
+import { readFileSync, existsSync, statSync } from 'fs'
+import { join } from 'path'
+import yaml from 'yaml'
+import { logger } from './logger'
+
+// =============================================================================
+// TYPE DEFINITIONS
+// =============================================================================
+
+export interface FooterLink {
+  label: string
+  url: string
+}
+
+export interface BrandConfig {
+  /** Path to logo image (relative to content dir, e.g. ./assets/images/logo.svg) */
+  logo: string
+  /** Path to dark mode logo (falls back to logo) */
+  logoDark: string
+  /** Path to favicon image */
+  favicon: string
+  /** Accent color hex (e.g. "#2563eb") */
+  accentColor: string
+  /** Header display style */
+  headerStyle: 'logo_only' | 'logo_and_text' | 'text_only'
+  /** Footer copyright/text */
+  footerText: string
+  /** Footer navigation links */
+  footerLinks: FooterLink[]
+  /** Path to custom CSS file (relative to content dir) */
+  customCss: string
+  /** OpenGraph default image path */
+  ogImage: string
+}
+
+// =============================================================================
+// DEFAULTS
+// =============================================================================
+
+const DEFAULT_BRAND: BrandConfig = {
+  logo: '',
+  logoDark: '',
+  favicon: '',
+  accentColor: '',
+  headerStyle: 'text_only',
+  footerText: '',
+  footerLinks: [],
+  customCss: '',
+  ogImage: '',
+}
+
+// =============================================================================
+// MTIME-BASED CACHE
+// =============================================================================
+
+let brandCache: BrandConfig | null = null
+let brandMtime: number = 0
+
+/**
+ * Resolve a content-relative path (./assets/images/logo.svg) to an API URL.
+ */
+function resolveAssetUrl(relativePath: string): string {
+  if (!relativePath) return ''
+  // Strip leading ./ 
+  const cleaned = relativePath.replace(/^\.\//, '')
+  return `/api/content/${cleaned}`
+}
+
+// =============================================================================
+// PUBLIC API
+// =============================================================================
+
+/**
+ * Get the brand configuration, reading from _brand.md with mtime caching.
+ * 
+ * @param contentDir - Path to the content directory
+ * @returns BrandConfig with all fields populated (defaults for missing values)
+ */
+export function getBrandConfig(contentDir: string): BrandConfig {
+  const brandPath = join(contentDir, '_brand.md')
+
+  // Check if _brand.md exists
+  if (!existsSync(brandPath)) {
+    if (brandCache) return brandCache
+    brandCache = { ...DEFAULT_BRAND }
+    return brandCache
+  }
+
+  // Check mtime for cache validity
+  try {
+    const stats = statSync(brandPath)
+    if (brandCache && stats.mtimeMs === brandMtime) {
+      return brandCache
+    }
+
+    // Parse _brand.md
+    const content = readFileSync(brandPath, 'utf-8')
+    const match = content.match(/^---\n([\s\S]*?)\n---/)
+    if (!match) {
+      brandCache = { ...DEFAULT_BRAND }
+      brandMtime = stats.mtimeMs
+      return brandCache
+    }
+
+    const fm = yaml.parse(match[1]) || {}
+
+    // Parse footer links
+    let footerLinks: FooterLink[] = []
+    if (Array.isArray(fm.footer_links)) {
+      footerLinks = fm.footer_links
+        .filter((l: unknown) => l && typeof l === 'object' && 'label' in (l as object) && 'url' in (l as object))
+        .map((l: Record<string, string>) => ({
+          label: String(l.label || ''),
+          url: String(l.url || ''),
+        }))
+    }
+
+    brandCache = {
+      logo: resolveAssetUrl(fm.logo as string || ''),
+      logoDark: resolveAssetUrl(fm.logo_dark as string || fm.logo as string || ''),
+      favicon: resolveAssetUrl(fm.favicon as string || ''),
+      accentColor: (fm.accent_color as string) || '',
+      headerStyle: (['logo_only', 'logo_and_text', 'text_only'].includes(fm.header_style as string)
+        ? fm.header_style as BrandConfig['headerStyle']
+        : 'text_only'),
+      footerText: (fm.footer_text as string) || '',
+      footerLinks,
+      customCss: resolveAssetUrl(fm.custom_css as string || ''),
+      ogImage: resolveAssetUrl(fm.og_image as string || ''),
+    }
+
+    brandMtime = stats.mtimeMs
+    logger.info('Brand config loaded', { path: brandPath })
+    return brandCache
+
+  } catch (error) {
+    logger.warn('Failed to read _brand.md', {
+      path: brandPath,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    brandCache = { ...DEFAULT_BRAND }
+    return brandCache
+  }
+}
+
+/**
+ * Invalidate the brand cache.
+ */
+export function invalidateBrandCache(): void {
+  brandCache = null
+  brandMtime = 0
+}

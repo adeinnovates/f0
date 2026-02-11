@@ -1,5 +1,6 @@
 /**
  * =============================================================================
+import { logger } from '../../utils/logger'
  * F0 - SEMANTIC SEARCH API FOR AI AGENTS
  * =============================================================================
  * 
@@ -162,12 +163,12 @@ async function buildContentIndex(contentDir: string): Promise<ContentItem[]> {
               hasApiEndpoints,
             })
           } catch (e) {
-            console.error(`[AgentSearch] Error reading ${fullPath}:`, e)
+            logger.warn('Error reading file for agent search', { path: fullPath })
           }
         }
       }
     } catch (e) {
-      console.error(`[AgentSearch] Error scanning ${dir}:`, e)
+      logger.warn('Error scanning for agent search', { path: dir })
     }
   }
   

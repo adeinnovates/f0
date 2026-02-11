@@ -37,6 +37,7 @@ import { visit } from 'unist-util-visit'
 import type { Root, Text, Paragraph } from 'mdast'
 import type { Root as HastRoot, Element } from 'hast'
 import yaml from 'yaml'
+import { logger } from './logger'
 
 // =============================================================================
 // TYPE DEFINITIONS
@@ -366,6 +367,90 @@ export function escapeHtml(text: string): string {
 // =============================================================================
 
 /**
+ * Responsive image widths for srcset generation.
+ */
+const RESPONSIVE_WIDTHS = [400, 800, 1200]
+
+/**
+ * Rehype plugin to transform images for responsive delivery.
+ * 
+ * Phase 2.1 — Handles two concerns:
+ * 1. Path portability: Resolves relative paths (./assets/images/x.png) to
+ *    API URLs (/api/content/assets/images/x.png). This means Markdown files
+ *    can be previewed in GitHub, VS Code, or any standard viewer.
+ * 2. Responsive images: Wraps <img> in <picture> with WebP srcset at
+ *    multiple widths, with lazy loading and async decoding.
+ */
+function rehypeResponsiveImages() {
+  return (tree: HastRoot) => {
+    visit(tree, 'element', (node: Element, index, parent) => {
+      if (node.tagName !== 'img' || !parent || index === undefined) return
+
+      const src = node.properties?.src as string
+      if (!src) return
+
+      // Skip external images and already-processed API URLs
+      if (src.startsWith('http://') || src.startsWith('https://') || src.startsWith('/api/')) return
+      // Skip data URIs
+      if (src.startsWith('data:')) return
+
+      // Resolve relative paths to API URLs
+      let apiSrc = src
+      if (src.startsWith('./assets/') || src.startsWith('assets/')) {
+        apiSrc = '/api/content/' + src.replace(/^\.\//, '')
+      } else if (src.startsWith('./') || !src.startsWith('/')) {
+        // Other relative paths — prefix with API
+        apiSrc = '/api/content/assets/' + src.replace(/^\.\//, '')
+      }
+
+      const alt = (node.properties?.alt as string) || ''
+      const ext = apiSrc.split('.').pop()?.toLowerCase() || ''
+
+      // SVGs and GIFs don't get responsive treatment
+      if (ext === 'svg' || ext === 'gif') {
+        node.properties = { ...node.properties, src: apiSrc, loading: 'lazy', decoding: 'async' }
+        return
+      }
+
+      // Build responsive <picture> element
+      const webpSrcset = RESPONSIVE_WIDTHS
+        .map(w => `${apiSrc}?w=${w}&f=webp ${w}w`)
+        .join(', ')
+
+      const pictureNode: Element = {
+        type: 'element',
+        tagName: 'picture',
+        properties: {},
+        children: [
+          {
+            type: 'element',
+            tagName: 'source',
+            properties: {
+              srcSet: webpSrcset,
+              type: 'image/webp',
+            },
+            children: [],
+          },
+          {
+            type: 'element',
+            tagName: 'img',
+            properties: {
+              src: `${apiSrc}?w=800`,
+              alt,
+              loading: 'lazy',
+              decoding: 'async',
+            },
+            children: [],
+          },
+        ],
+      }
+
+      parent.children[index] = pictureNode
+    })
+  }
+}
+
+/**
  * Rehype plugin to extract table of contents from headings
  * Collects all H2 and H3 headings with their slugs
  */
@@ -525,7 +610,7 @@ export function extractFrontmatter(content: string): {
     return { frontmatter, content: contentWithoutFrontmatter }
   } catch {
     // If YAML parsing fails, treat it as no frontmatter
-    console.warn('Failed to parse frontmatter, treating as content')
+    logger.warn('Failed to parse frontmatter, treating as content')
     return { frontmatter: {}, content }
   }
 }
@@ -639,6 +724,8 @@ export async function parseMarkdown(content: string): Promise<ParsedMarkdown> {
       .use(remarkRehype, { allowDangerousHtml: true })
       // Add slugs to headings for linking
       .use(rehypeSlug)
+      // Responsive images (path resolution + srcset + lazy loading)
+      .use(rehypeResponsiveImages)
       // Extract TOC from headings
       .use(() => rehypeExtractToc(toc))
       // Syntax highlighting for code blocks (disable auto-detect to prevent errors)
@@ -663,7 +750,7 @@ export async function parseMarkdown(content: string): Promise<ParsedMarkdown> {
       title: frontmatter.title || extractedTitle || 'Untitled',
     }
   } catch (error) {
-    console.error('[Markdown] Error parsing content:', error)
+    logger.error('Error parsing content', { error: error instanceof Error ? error.message : String(error) })
     
     // Return a basic parsed result with error message
     return {
@@ -863,7 +950,7 @@ export async function parseMarkdownSafe(content: string, filePath: string = 'unk
     const isProduction = process.env.NODE_ENV === 'production'
 
     // Log the error with context
-    console.error(`[f0] Markdown parsing failed for ${filePath}:`, errorMessage)
+    logger.error('Markdown parsing failed', { path: filePath, error: errorMessage })
 
     // Fallback: render raw markdown in a <pre> block with an error notice
     const errorNotice = isProduction

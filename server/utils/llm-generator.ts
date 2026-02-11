@@ -206,7 +206,7 @@ async function collectContent(
             order: 999,
           })
         } catch (error) {
-          console.warn(`[LLM Generator] Failed to parse API spec ${entryPath}:`, error)
+          logger.warn('Failed to parse API spec', { path: entryPath, error: error instanceof Error ? error.message : String(error) })
         }
       }
     }
@@ -219,7 +219,7 @@ async function collectContent(
     
     return items
   } catch (error) {
-    console.error(`[LLM Generator] Error collecting content from ${dirPath}:`, error)
+    logger.error('Error collecting content', { path: dirPath, error: error instanceof Error ? error.message : String(error) })
     return []
   }
 }

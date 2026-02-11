@@ -1,5 +1,6 @@
 /**
  * =============================================================================
+import { logger } from '../../utils/logger'
  * F0 - CONTENT API ENDPOINT
  * =============================================================================
  * 
@@ -143,7 +144,7 @@ export default defineEventHandler(async (event) => {
       throw error
     }
     
-    console.error(`[Content] Error loading ${contentSlug}:`, error)
+    logger.error('Error loading content', { slug: contentSlug, error: error instanceof Error ? error.message : String(error) })
     
     throw createError({
       statusCode: 500,

@@ -1,5 +1,6 @@
 /**
  * =============================================================================
+import { logger } from '../../utils/logger'
  * F0 - BLOG TAGS API
  * =============================================================================
  * 
@@ -59,7 +60,7 @@ export default defineEventHandler(async (event) => {
       }
     }
   } catch (error) {
-    console.error(`[Blog Tags] Error scanning ${fullPath}:`, error)
+    logger.warn('Error scanning blog tags', { path: fullPath })
   }
 
   const tags: TagInfo[] = Array.from(tagMap.entries())

@@ -24,32 +24,31 @@
  * - Invalidated when content changes
  */
 
-import { generateLlmText } from '../utils/llm-generator'
+import { getCachedLlmsTxt } from '../utils/llms-cache'
+import { logger } from '../utils/logger'
 
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig()
   
   try {
-    // Generate LLM-optimized text
-    const llmText = await generateLlmText(
+    // Serve from cache — regenerates only when content hash changes
+    const llmText = await getCachedLlmsTxt(
       config.contentDir,
       config.public.siteName
     )
     
     // Set content type to plain text
     setHeader(event, 'Content-Type', 'text/plain; charset=utf-8')
-    
-    // Add cache headers (also set in nuxt.config.ts routeRules)
     setHeader(event, 'Cache-Control', 'public, max-age=3600')
     
     return llmText
     
   } catch (error) {
-    console.error('[llms.txt] Error generating LLM text:', error)
+    logger.error('Failed to generate /llms.txt', {
+      error: error instanceof Error ? error.message : String(error),
+    })
     
-    // Return error in plain text format
     setHeader(event, 'Content-Type', 'text/plain; charset=utf-8')
-    
     return `# Error\n\nFailed to generate documentation context.\nPlease try again later.`
   }
 })

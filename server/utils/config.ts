@@ -20,6 +20,7 @@
 import { readFileSync, existsSync } from 'fs'
 import { join, dirname } from 'path'
 import yaml from 'yaml'
+import { logger } from './logger'
 
 // =============================================================================
 // TYPE DEFINITIONS
@@ -91,7 +92,7 @@ function extractConfigFrontmatter(content: string): Record<string, unknown> {
   try {
     return yaml.parse(match[1]) || {}
   } catch {
-    console.warn('[Config] Failed to parse _config.md frontmatter')
+    logger.warn('Failed to parse _config.md frontmatter')
     return {}
   }
 }
@@ -123,7 +124,7 @@ function parseConfigFile(configPath: string): DirectoryConfig {
         : defaults.dateFormat),
     }
   } catch (error) {
-    console.warn(`[Config] Error reading ${configPath}:`, error)
+    logger.warn('Error reading config', { path: configPath, error: error instanceof Error ? error.message : String(error) })
     return { ...DEFAULT_DOCS_CONFIG }
   }
 }

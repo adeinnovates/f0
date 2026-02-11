@@ -125,12 +125,12 @@ async function buildContentIndex(contentDir: string): Promise<ContentItem[]> {
               section: section || 'Home',
             })
           } catch (e) {
-            console.error(`[Search] Error reading ${fullPath}:`, e)
+            logger.warn('Error reading file for search', { path: fullPath })
           }
         }
       }
     } catch (e) {
-      console.error(`[Search] Error scanning ${dir}:`, e)
+      logger.warn('Error scanning directory for search', { path: dir })
     }
   }
   
