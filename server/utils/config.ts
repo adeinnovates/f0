@@ -34,6 +34,10 @@ export interface DirectoryConfig {
   defaultAuthor: string
   showToc: boolean
   dateFormat: 'long' | 'short' | 'relative'
+  /** Full-bleed hero background image (URL or content-relative path) */
+  heroImage: string
+  /** Hero subtitle/tagline shown below the title */
+  heroSubtitle: string
 }
 
 // =============================================================================
@@ -48,6 +52,8 @@ const DEFAULT_DOCS_CONFIG: DirectoryConfig = {
   defaultAuthor: '',
   showToc: true,
   dateFormat: 'long',
+  heroImage: '',
+  heroSubtitle: '',
 }
 
 const DEFAULT_BLOG_CONFIG: DirectoryConfig = {
@@ -58,6 +64,8 @@ const DEFAULT_BLOG_CONFIG: DirectoryConfig = {
   defaultAuthor: '',
   showToc: false,
   dateFormat: 'long',
+  heroImage: '',
+  heroSubtitle: '',
 }
 
 // =============================================================================
@@ -98,6 +106,21 @@ function extractConfigFrontmatter(content: string): Record<string, unknown> {
 }
 
 // =============================================================================
+// ASSET URL RESOLUTION
+// =============================================================================
+
+/**
+ * Resolve a content-relative path (./assets/images/hero.jpg) to an API URL.
+ * Absolute URLs (https://...) are returned as-is.
+ */
+function resolveAssetUrl(path: string): string {
+  if (!path) return ''
+  if (path.startsWith('http://') || path.startsWith('https://')) return path
+  const cleaned = path.replace(/^\.\//, '')
+  return `/api/content/${cleaned}`
+}
+
+// =============================================================================
 // MAIN RESOLVER
 // =============================================================================
 
@@ -122,6 +145,8 @@ function parseConfigFile(configPath: string): DirectoryConfig {
       dateFormat: (['long', 'short', 'relative'].includes(fm.date_format as string)
         ? fm.date_format as 'long' | 'short' | 'relative'
         : defaults.dateFormat),
+      heroImage: resolveAssetUrl((fm.hero_image as string) || ''),
+      heroSubtitle: (fm.hero_subtitle as string) || defaults.heroSubtitle,
     }
   } catch (error) {
     logger.warn('Error reading config', { path: configPath, error: error instanceof Error ? error.message : String(error) })

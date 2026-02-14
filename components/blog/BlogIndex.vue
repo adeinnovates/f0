@@ -1,10 +1,14 @@
 <!--
   F0 - BLOG INDEX
-  Post listing with header, cards, tag filtering, pagination.
+  Post listing with optional hero header, cards, tag filtering, pagination.
+  
+  When _config.md includes hero_image, renders BlogHero which handles
+  switching the layout to full-width mode via injected style tag.
+  Post content below the hero stays centered at 840px max-width.
 -->
 
 <template>
-  <div class="blog-layout">
+  <div class="blog-layout" :class="{ 'has-hero': hasHero }">
     <!-- Loading -->
     <div v-if="pending" class="loading">
       <div class="loading-spinner" />
@@ -12,11 +16,24 @@
 
     <!-- Content -->
     <div v-else-if="data">
-      <!-- Blog Header -->
-      <header class="blog-header">
+      <!-- Hero Header (when hero_image is set in _config.md) -->
+      <BlogHero
+        v-if="hasHero"
+        :title="data.config.title || 'Blog'"
+        :subtitle="data.config.heroSubtitle"
+        :description="data.config.description"
+        :image="data.config.heroImage"
+        :siteName="siteName"
+      />
+
+      <!-- Simple Header (default — no hero image) -->
+      <header v-else class="blog-header">
         <h1>{{ data.config.title || 'Blog' }}</h1>
         <p v-if="data.config.description">{{ data.config.description }}</p>
+      </header>
 
+      <!-- Post content area (constrained width when hero is active) -->
+      <div :class="hasHero ? 'blog-content-area' : ''">
         <!-- Active tag filter -->
         <div v-if="activeTag" class="blog-tag-filter">
           <span class="blog-tag-filter-label">Filtered by</span>
@@ -25,33 +42,33 @@
             <button class="blog-active-tag-clear" @click="clearTag" aria-label="Clear filter">&times;</button>
           </span>
         </div>
-      </header>
 
-      <!-- Empty state -->
-      <div v-if="data.posts.length === 0" class="blog-empty">
-        <h2>No posts found</h2>
-        <p v-if="activeTag">No posts tagged "{{ activeTag }}". <NuxtLink :to="blogPath">View all posts</NuxtLink></p>
-        <p v-else>No blog posts yet. Add markdown files to get started.</p>
-      </div>
+        <!-- Empty state -->
+        <div v-if="data.posts.length === 0" class="blog-empty">
+          <h2>No posts found</h2>
+          <p v-if="activeTag">No posts tagged "{{ activeTag }}". <NuxtLink :to="blogPath">View all posts</NuxtLink></p>
+          <p v-else>No blog posts yet. Add markdown files to get started.</p>
+        </div>
 
-      <!-- Post List -->
-      <div v-else class="blog-post-grid">
-        <BlogPostCard
-          v-for="post in data.posts"
-          :key="post.path"
-          :post="post"
-          :basePath="blogPath"
-          :dateFormat="data.config.dateFormat"
+        <!-- Post List -->
+        <div v-else class="blog-post-grid">
+          <BlogPostCard
+            v-for="post in data.posts"
+            :key="post.path"
+            :post="post"
+            :basePath="blogPath"
+            :dateFormat="data.config.dateFormat"
+          />
+        </div>
+
+        <!-- Pagination -->
+        <BlogPagination
+          v-if="data.pagination.totalPages > 1"
+          :currentPage="data.pagination.currentPage"
+          :totalPages="data.pagination.totalPages"
+          @page-change="goToPage"
         />
       </div>
-
-      <!-- Pagination -->
-      <BlogPagination
-        v-if="data.pagination.totalPages > 1"
-        :currentPage="data.pagination.currentPage"
-        :totalPages="data.pagination.totalPages"
-        @page-change="goToPage"
-      />
     </div>
 
     <!-- Error -->
@@ -66,6 +83,9 @@
 const props = defineProps<{
   path?: string
 }>()
+
+const runtimeConfig = useRuntimeConfig()
+const siteName = computed(() => runtimeConfig.public?.siteName || '')
 
 const route = useRoute()
 const router = useRouter()
@@ -82,6 +102,8 @@ const { data, pending } = await useFetch<{
     description: string
     postsPerPage: number
     dateFormat: 'long' | 'short' | 'relative'
+    heroImage: string
+    heroSubtitle: string
   }
   posts: Array<{
     title: string
@@ -110,6 +132,8 @@ const { data, pending } = await useFetch<{
   },
   watch: [apiPath, currentPage, activeTag],
 })
+
+const hasHero = computed(() => !!data.value?.config?.heroImage)
 
 function tagColorClass(tag: string): string {
   let hash = 0

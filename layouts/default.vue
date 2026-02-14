@@ -36,23 +36,19 @@
         <slot />
       </div>
 
-      <!-- Footer (from _brand.md) — inside main-content so it sits below content -->
+      <!-- Footer (from _brand.md) -->
       <footer v-if="brand?.footerText || (brand?.footerLinks && brand.footerLinks.length > 0)" class="site-footer">
         <div class="footer-content">
           <span v-if="brand.footerText" class="footer-text">{{ brand.footerText }}</span>
           <nav v-if="brand.footerLinks && brand.footerLinks.length > 0" class="footer-links">
             <template v-for="link in brand.footerLinks" :key="link.url">
               <a
-                v-if="isExternalLink(link.url)"
+                v-if="link.url.startsWith('http')"
                 :href="link.url"
                 target="_blank"
                 rel="noopener noreferrer"
-              >
-                {{ link.label }}
-              </a>
-              <NuxtLink v-else :to="link.url">
-                {{ link.label }}
-              </NuxtLink>
+              >{{ link.label }}</a>
+              <NuxtLink v-else :to="link.url">{{ link.label }}</NuxtLink>
             </template>
           </nav>
         </div>
@@ -113,17 +109,12 @@ useHead(computed(() => {
   
   if (brand.value?.accentColor) {
     (head.style as Record<string, string>[]).push({
-      innerHTML: `:root { --color-accent: ${brand.value.accentColor}; --color-accent-light: ${brand.value.accentColor}20; }`,
+      innerHTML: `:root { --color-accent: ${brand.value.accentColor}; --color-accent-light: ${brand.value.accentColor}20; } [data-theme="dark"] { --color-accent: ${brand.value.accentColor}; --color-accent-light: ${brand.value.accentColor}20; }`,
     })
   }
   
   return head
 }))
-
-// Helper for external links in footer
-function isExternalLink(url: string): boolean {
-  return url.startsWith('http://') || url.startsWith('https://')
-}
 
 // ---------------------------------------------------------------------------
 // THEME
@@ -197,11 +188,11 @@ onMounted(() => {
   }
 }
 
-/* Footer — now inside main-content, sits at bottom */
+/* Footer */
 .site-footer {
   border-top: 1px solid var(--color-border-primary);
-  padding: var(--spacing-6) 0;
-  margin-top: var(--spacing-12);
+  padding: var(--spacing-6) var(--spacing-8);
+  margin-top: auto;
 }
 
 .footer-content {
@@ -238,7 +229,7 @@ onMounted(() => {
 
 @media (max-width: 768px) {
   .site-footer {
-    padding: var(--spacing-4) 0;
+    padding: var(--spacing-4);
   }
   
   .footer-content {
